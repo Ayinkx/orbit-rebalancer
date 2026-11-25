@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADRs)
 
-This directory contains records of significant architectural decisions made for the Stellar Portfolio Rebalancer project.
+This directory contains records of significant architectural decisions made for the Orbit Rebalancer project.
 
 ## What is an ADR?
 

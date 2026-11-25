@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Stellar Portfolio Rebalancer API implements comprehensive rate limiting to protect against abuse and accidental overload. The system uses Redis for distributed rate limiting across multiple instances and provides detailed monitoring and alerting.
+The Orbit Rebalancer API implements comprehensive rate limiting to protect against abuse and accidental overload. The system uses Redis for distributed rate limiting across multiple instances and provides detailed monitoring and alerting.
 
 ## Architecture
 

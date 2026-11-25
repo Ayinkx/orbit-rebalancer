@@ -1,6 +1,6 @@
-# Stellar Portfolio Rebalancer — Soroban Contract
+# Orbit Rebalancer — Soroban Contract
 
-Soroban smart contract for the Stellar Portfolio Rebalancer. It manages
+Soroban smart contract for the Orbit Rebalancer. It manages
 portfolios on-chain (create/deposit/withdraw), computes rebalance trades, and
 exposes the strategy-aware lifecycle (`check_rebalance_needed`,
 `preview_rebalance`, `execute_rebalance`, `configure_dca`, `execute_dca`, ...).

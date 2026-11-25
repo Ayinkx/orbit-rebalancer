@@ -1,5 +1,5 @@
 /**
- * Wallet adapter implementations for Stellar Portfolio Rebalancer.
+ * Wallet adapter implementations for Orbit Rebalancer.
  * 
  * Supported wallets: Freighter, Rabet, xBull, Hana, Mock (E2E)
  * 

@@ -96,7 +96,7 @@ describe('consent routes integration', () => {
     it('POST /api/v1/consent/grant computes, persists, and returns document_version hash when documentText is provided', async () => {
         const userId = testUser('GRANTVER')
         const token = generateAccessToken(userId)
-        const docText = 'Terms and Conditions v2.0 - Agree to Stellar Portfolio Rebalancer'
+        const docText = 'Terms and Conditions v2.0 - Agree to Orbit Rebalancer'
         const expectedHash = '66319e1f1025874cd1a7edb6b6f115a0637008723c02b28a428bbb6b05058e67' // sha256 hash of the docText
 
         const grant = await request(app)

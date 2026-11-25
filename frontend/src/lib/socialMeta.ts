@@ -7,8 +7,8 @@
  * link cannot leave one portfolio's stats attached to the next page.
  */
 
-export const SOCIAL_SITE_NAME = 'Stellar Portfolio Rebalancer'
-export const DEFAULT_SOCIAL_TITLE = 'Stellar Portfolio Rebalancer — automated portfolio rebalancing'
+export const SOCIAL_SITE_NAME = 'Orbit Rebalancer'
+export const DEFAULT_SOCIAL_TITLE = 'Orbit Rebalancer — automated portfolio rebalancing'
 export const DEFAULT_SOCIAL_DESCRIPTION =
   'Rebalance Stellar portfolios against Reflector oracle prices and share a read-only snapshot of your allocation.'
 

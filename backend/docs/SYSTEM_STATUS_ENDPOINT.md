@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `/api/system/status` endpoint provides a single, public operational status view for the Stellar Portfolio Rebalancer system. It aggregates system health information from multiple components without exposing sensitive configuration.
+The `/api/system/status` endpoint provides a single, public operational status view for the Orbit Rebalancer system. It aggregates system health information from multiple components without exposing sensitive configuration.
 
 ## Endpoint
 

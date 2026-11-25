@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Stellar Portfolio Rebalancer API",
+    "title": "Orbit Rebalancer API",
     "description": "Intelligent portfolio rebalancing service for the Stellar ecosystem using Reflector oracles. Create portfolios, fetch prices, execute rebalances, and manage risk.",
     "version": "1.0.0",
     "contact": {
@@ -83,7 +83,7 @@
                   "properties": {
                     "message": {
                       "type": "string",
-                      "example": "Stellar Portfolio Rebalancer API"
+                      "example": "Orbit Rebalancer API"
                     },
                     "status": {
                       "type": "string",

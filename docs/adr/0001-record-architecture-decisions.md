@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-As the Stellar Portfolio Rebalancer project grows, it becomes increasingly difficult to keep track of the architectural decisions made, the rationale behind them, and the trade-offs considered. Without a formal process, this knowledge is often lost or buried in pull request comments.
+As the Orbit Rebalancer project grows, it becomes increasingly difficult to keep track of the architectural decisions made, the rationale behind them, and the trade-offs considered. Without a formal process, this knowledge is often lost or buried in pull request comments.
 
 We need a lightweight, repeatable way to document these decisions so that current and future contributors can understand the "why" behind the codebase.
 

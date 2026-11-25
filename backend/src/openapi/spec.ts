@@ -1,12 +1,12 @@
 /**
- * OpenAPI 3.0 specification for Stellar Portfolio Rebalancer API.
+ * OpenAPI 3.0 specification for Orbit Rebalancer API.
  * Served at /api-docs via Swagger UI.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const spec: Record<string, any> = {
     openapi: '3.1.0',
     info: {
-        title: 'Stellar Portfolio Rebalancer API',
+        title: 'Orbit Rebalancer API',
         description: 'Intelligent portfolio rebalancing service for the Stellar ecosystem using Reflector oracles. Create portfolios, fetch prices, execute rebalances, and manage risk.',
         version: '1.0.0',
         contact: {
@@ -45,7 +45,7 @@ const spec: Record<string, any> = {
                                 schema: {
                                     type: 'object',
                                     properties: {
-                                        message: { type: 'string', example: 'Stellar Portfolio Rebalancer API' },
+                                        message: { type: 'string', example: 'Orbit Rebalancer API' },
                                         status: { type: 'string', example: 'running' },
                                         version: { type: 'string', example: '1.0.0' },
                                         timestamp: { type: 'string', format: 'date-time' },

@@ -11,7 +11,7 @@ Proposed
 
 ## Context
 
-The Stellar Portfolio Rebalancer contract ([`PortfolioRebalancer`](../../contracts/src/lib.rs)) currently tracks portfolio holdings and rebalances using a mix of internal ledger mutation and a single off-chain reconciliation step. The contract exposes the familiar lifecycle entry points — `create_portfolio`, `deposit`, `withdraw`, `check_rebalance_needed`, `preview_rebalance`, `execute_rebalance`, plus related administrative surfaces — but its asset-transfer semantics are inconsistent and do not yet match the "real Stellar asset transfer" direction agreed for the project.
+The Orbit Rebalancer contract ([`PortfolioRebalancer`](../../contracts/src/lib.rs)) currently tracks portfolio holdings and rebalances using a mix of internal ledger mutation and a single off-chain reconciliation step. The contract exposes the familiar lifecycle entry points — `create_portfolio`, `deposit`, `withdraw`, `check_rebalance_needed`, `preview_rebalance`, `execute_rebalance`, plus related administrative surfaces — but its asset-transfer semantics are inconsistent and do not yet match the "real Stellar asset transfer" direction agreed for the project.
 
 Concretely, the current on-chain behaviour is:
 
@@ -269,7 +269,7 @@ Proposed
 
 ## Context
 
-The Stellar Portfolio Rebalancer contract ([`PortfolioRebalancer`](../../contracts/src/lib.rs)) currently tracks portfolio holdings and rebalances using a mix of internal ledger mutation and a single off-chain reconciliation step. The contract exposes the familiar lifecycle entry points — `create_portfolio`, `deposit`, `withdraw`, `check_rebalance_needed`, `preview_rebalance`, `execute_rebalance`, plus related administrative surfaces — but its asset-transfer semantics are inconsistent and do not yet match the "real Stellar asset transfer" direction agreed for the project.
+The Orbit Rebalancer contract ([`PortfolioRebalancer`](../../contracts/src/lib.rs)) currently tracks portfolio holdings and rebalances using a mix of internal ledger mutation and a single off-chain reconciliation step. The contract exposes the familiar lifecycle entry points — `create_portfolio`, `deposit`, `withdraw`, `check_rebalance_needed`, `preview_rebalance`, `execute_rebalance`, plus related administrative surfaces — but its asset-transfer semantics are inconsistent and do not yet match the "real Stellar asset transfer" direction agreed for the project.
 
 Concretely, the current on-chain behaviour is:
 

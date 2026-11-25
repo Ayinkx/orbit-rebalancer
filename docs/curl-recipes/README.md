@@ -1,6 +1,6 @@
 # cURL Recipe Examples
 
-This directory contains copy-paste cURL recipes for common API workflows in the Stellar Portfolio Rebalancer.
+This directory contains copy-paste cURL recipes for common API workflows in the Orbit Rebalancer.
 
 ## Usage
 

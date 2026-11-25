@@ -8,7 +8,7 @@
 
 ## 📖 Summary
 
-This pull request implements four major frontend enhancements for the Stellar Portfolio Rebalancer:
+This pull request implements four major frontend enhancements for the Orbit Rebalancer:
 
 1. **Issue #911 — Portfolio Pie Chart Update Fix:** Fixed the pie chart to re-render immediately after successful allocation save without requiring a page refresh.
 

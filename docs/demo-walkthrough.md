@@ -1,6 +1,6 @@
 # Demo Walkthrough
 
-This guide provides a step-by-step walkthrough of the Stellar Portfolio Rebalancer with notes on what you should see at each step.
+This guide provides a step-by-step walkthrough of the Orbit Rebalancer with notes on what you should see at each step.
 
 ## Prerequisites
 

@@ -1,6 +1,6 @@
 # Windows + WSL Local Development Workflow
 
-This guide helps Windows users set up a robust local development environment for the Stellar Portfolio Rebalancer using Windows Subsystem for Linux (WSL).
+This guide helps Windows users set up a robust local development environment for the Orbit Rebalancer using Windows Subsystem for Linux (WSL).
 
 ## 1. WSL Installation Recommendations
 

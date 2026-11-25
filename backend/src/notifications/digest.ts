@@ -457,7 +457,7 @@ ${data.portfolios.length === 1 && performerChartImg ? `
 
 <tr>
 <td style="padding:24px;text-align:center;font-size:12px;color:#9ca3af">
-<p style="margin:0 0 8px">Stellar Portfolio Rebalancer</p>
+<p style="margin:0 0 8px">Orbit Rebalancer</p>
 <p style="margin:0 0 4px">This is an automated ${data.period.toLowerCase()} summary of your portfolio performance.</p>
 <a href="${escapeHtml(unsubscribeUrl)}" style="color:#6b7280;text-decoration:underline">Unsubscribe from digest emails</a>
 </td>
@@ -493,7 +493,7 @@ function generateDigestText(data: UserDigestData, unsubscribeUrl: string): strin
   }
 
   lines.push('---')
-  lines.push('Stellar Portfolio Rebalancer')
+  lines.push('Orbit Rebalancer')
   lines.push('')
   lines.push(`Unsubscribe: ${unsubscribeUrl}`)
 

@@ -28,7 +28,7 @@ export const OG_IMAGE_SEGMENT_COLORS = [
     '#EC4899',
 ] as const
 
-const BRAND = 'Stellar Portfolio Rebalancer'
+const BRAND = 'Orbit Rebalancer'
 const MARGIN = 80
 const CONTENT_WIDTH = OG_IMAGE_WIDTH - MARGIN * 2
 const HEADER_HEIGHT = 140

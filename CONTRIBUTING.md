@@ -1,4 +1,4 @@
-# Contributing to Stellar Portfolio Rebalancer
+# Contributing to Orbit Rebalancer
 
 _Last verified: 2026-09-29_
 

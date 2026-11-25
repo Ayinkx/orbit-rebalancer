@@ -1,6 +1,6 @@
 # Backlog Grooming & Issue Lifecycle Guide
 
-This document outlines the standard process for maintaining the Stellar Portfolio Rebalancer backlog to ensure consistent issue batches, clear prioritization, and high-quality contributor workflows.
+This document outlines the standard process for maintaining the Orbit Rebalancer backlog to ensure consistent issue batches, clear prioritization, and high-quality contributor workflows.
 
 ## 1. Issue Creation & Triage
 

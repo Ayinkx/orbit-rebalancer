@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Stellar Portfolio Rebalancer includes a comprehensive notification system that alerts users about important portfolio events via email, webhooks, Slack, and SMS.
+The Orbit Rebalancer includes a comprehensive notification system that alerts users about important portfolio events via email, webhooks, Slack, and SMS.
 
 ## Features
 
@@ -308,7 +308,7 @@ def webhook():
 1. **Create a Slack App**
    - Go to https://api.slack.com/apps
    - Click "Create New App" → "From scratch"
-   - Name your app (e.g., "Stellar Portfolio Rebalancer") and select your workspace
+   - Name your app (e.g., "Orbit Rebalancer") and select your workspace
 
 2. **Enable Incoming Webhooks**
    - In your app's sidebar, navigate to "Incoming Webhooks"
@@ -380,7 +380,7 @@ Notifications are sent as richly formatted Slack messages using Block Kit:
     {
       "type": "context",
       "elements": [
-        { "type": "mrkdwn", "text": "Stellar Portfolio Rebalancer | 2024-02-20T10:30:00.000Z" }
+        { "type": "mrkdwn", "text": "Orbit Rebalancer | 2024-02-20T10:30:00.000Z" }
       ]
     }
   ]
@@ -502,7 +502,7 @@ Event Type: rebalance
 Time: 2024-02-20T10:30:00.000Z
 
 ---
-Stellar Portfolio Rebalancer
+Orbit Rebalancer
 ```
 
 ### HTML Format
@@ -529,7 +529,7 @@ Stellar Portfolio Rebalancer
             <p><strong>Time:</strong> 2024-02-20T10:30:00.000Z</p>
         </div>
         <div class="footer">
-            <p>Stellar Portfolio Rebalancer</p>
+            <p>Orbit Rebalancer</p>
         </div>
     </div>
 </body>

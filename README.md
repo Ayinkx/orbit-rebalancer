@@ -1,4 +1,4 @@
-# Stellar Portfolio Rebalancer
+# Orbit Rebalancer
 
 <p align="center">
   <img src="https://img.shields.io/badge/Stellar-Reflector%20Protocol-blue" alt="Stellar" />
@@ -18,7 +18,7 @@
 
 ## Overview
 
-Stellar Portfolio Rebalancer is an **intelligent DeFi portfolio management platform** built on Stellar that automatically rebalances crypto portfolios using real-time price data from Reflector oracles.  
+Orbit Rebalancer is an **intelligent DeFi portfolio management platform** built on Stellar that automatically rebalances crypto portfolios using real-time price data from Reflector oracles.  
 
 It helps users maintain optimal asset allocation through automated rebalancing triggered by configurable drift thresholds while leveraging Stellar's fast, low-cost infrastructure.
 
@@ -46,7 +46,7 @@ It helps users maintain optimal asset allocation through automated rebalancing t
 
 ## Project Roadmap
 
-See where the Stellar Portfolio Rebalancer is headed!
+See where the Orbit Rebalancer is headed!
 
 | **Now** (Current Sprint) | **Next** (1-2 months) | **Later** (3-6+ months) |
 | :--- | :--- | :--- |

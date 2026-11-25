@@ -386,7 +386,7 @@ deploy_production() {
 main() {
     parse_args "$@"
 
-    echo "🌟 Stellar Portfolio Rebalancer Deployment Script"
+    echo "🌟 Orbit Rebalancer Deployment Script"
     echo "================================================"
 
     if [ "${DRY_RUN}" = "true" ]; then

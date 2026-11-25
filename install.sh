@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-echo "Installing Stellar Portfolio Rebalancer..."
+echo "Installing Orbit Rebalancer..."
 
 # Colors
 GREEN='\033[0;32m'
@@ -172,7 +172,7 @@ create_dirs() {
 
 # Main installation.
 main() {
-    echo "Stellar Portfolio Rebalancer Installation"
+    echo "Orbit Rebalancer Installation"
     echo "========================================="
 
     check_node

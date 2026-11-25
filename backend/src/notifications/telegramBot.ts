@@ -91,7 +91,7 @@ export function startBot(): void {
     const chatId = String(msg.chat.id)
     await bot.sendMessage(
       chatId,
-      'Welcome to Stellar Portfolio Rebalancer Bot\n\nAvailable commands:\n/link <address> - Link this chat to your account\n/status - Your portfolio status\n/unlink - Unlink this chat\n/pause - Pause rebalancing\n/resume - Resume rebalancing',
+      'Welcome to Orbit Rebalancer Bot\n\nAvailable commands:\n/link <address> - Link this chat to your account\n/status - Your portfolio status\n/unlink - Unlink this chat\n/pause - Pause rebalancing\n/resume - Resume rebalancing',
     )
   })
 

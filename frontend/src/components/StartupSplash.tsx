@@ -19,7 +19,7 @@ export default function StartupSplash({ loading, loadError }: StartupSplashProps
                     aria-hidden
                 />
                 <h1 className="mt-6 text-lg font-semibold text-gray-900 dark:text-white">
-                    Stellar Portfolio Rebalancer
+                    Orbit Rebalancer
                 </h1>
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                     {loading

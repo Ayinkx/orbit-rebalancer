@@ -2,7 +2,7 @@
 
 ## Summary
 
-This PR implements four backend features to enhance the Stellar Portfolio Rebalancer's configurability, alerting capabilities, and observability:
+This PR implements four backend features to enhance the Orbit Rebalancer's configurability, alerting capabilities, and observability:
 
 - **#1180**: Makes the hardcoded 15% volatility threshold configurable via admin API
 - **#1181**: Adds correlation-breakdown alert delivery to notification pipeline

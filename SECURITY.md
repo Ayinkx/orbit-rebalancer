@@ -4,7 +4,7 @@ Last verified: 2026-09-29 against commit `717ea953f3a338c35bfdbc73e06eddb95f2162
 
 ## Supported Versions
 
-There are no tagged releases. Security fixes are applied on the latest `main` branch of the Stellar Portfolio Rebalancer.
+There are no tagged releases. Security fixes are applied on the latest `main` branch of the Orbit Rebalancer.
 
 ## Reporting a Vulnerability
 
@@ -34,4 +34,4 @@ Maintainer handling for critical reports follows `docs/TRIAGE.md`:
 - **Disclosure**: We coordinate disclosure with the reporter. The usual window is 90 days.
 - **Maintenance Notes**: Do not open a public pull request with a fix for an unconfirmed vulnerability. Wait for maintainer coordination so the report is not disclosed early.
 
-Thank you for helping keep the Stellar Portfolio Rebalancer secure.
+Thank you for helping keep the Orbit Rebalancer secure.

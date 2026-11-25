@@ -1,6 +1,6 @@
 # Demo Walkthrough
 
-This visual guide walks you through the main features of the Stellar Portfolio Rebalancer platform. Follow along to understand the user journey from wallet connection to portfolio management.
+This visual guide walks you through the main features of the Orbit Rebalancer platform. Follow along to understand the user journey from wallet connection to portfolio management.
 
 ---
 

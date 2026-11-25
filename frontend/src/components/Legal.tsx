@@ -25,7 +25,7 @@ const LEGAL_DOCS: Record<LegalDocType, { title: string; content: React.ReactNode
             <>
                 {versionMeta}
                 <h2 className="text-xl font-semibold mt-6 mb-2">1. Acceptance</h2>
-                <p className="mb-4">By connecting your wallet and using the Stellar Portfolio Rebalancer (“Service”), you agree to these Terms of Service. If you do not agree, do not use the Service.</p>
+                <p className="mb-4">By connecting your wallet and using the Orbit Rebalancer (“Service”), you agree to these Terms of Service. If you do not agree, do not use the Service.</p>
                 <h2 className="text-xl font-semibold mt-6 mb-2">2. Disclaimers</h2>
                 <p className="mb-4">The Service is provided “as is” without warranties of any kind. We do not guarantee accuracy of prices, execution of rebalances, or availability. You use the Service at your own risk.</p>
                 <h2 className="text-xl font-semibold mt-6 mb-2">3. Smart contract and protocol risks</h2>

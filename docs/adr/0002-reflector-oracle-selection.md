@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The Stellar Portfolio Rebalancer requires reliable, real-time price feeds for assets (such as XLM, BTC, ETH, and USDC) to calculate portfolio values, check thresholds, and execute rebalancing operations. We need to select a primary oracle solution and design a fallback mechanism to handle oracle downtime or data staleness.
+The Orbit Rebalancer requires reliable, real-time price feeds for assets (such as XLM, BTC, ETH, and USDC) to calculate portfolio values, check thresholds, and execute rebalancing operations. We need to select a primary oracle solution and design a fallback mechanism to handle oracle downtime or data staleness.
 
 We evaluated four main alternatives:
 1. **Reflector**: A native Soroban-based oracle.

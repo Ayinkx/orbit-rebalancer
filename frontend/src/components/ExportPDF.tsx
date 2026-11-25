@@ -483,7 +483,7 @@ function buildReportHTML(opts: BuildOptions): string {
 
 <!-- ══════════════════════════════════════════════════════════ COVER PAGE ══ -->
 <div class="cover">
-  <div class="cover-badge">Stellar Portfolio Rebalancer</div>
+  <div class="cover-badge">Orbit Rebalancer</div>
   <h1>Portfolio Report</h1>
   <div class="subtitle">
     Wallet: ${walletDisplay}
@@ -598,7 +598,7 @@ function buildReportHTML(opts: BuildOptions): string {
 
 <!-- ══════════════════════════════════════════════════════════════ FOOTER ══ -->
 <div class="footer">
-  <span>Stellar Portfolio Rebalancer · portfolio_report_${generatedAt.replace(/[^0-9-]/g, '').slice(0, 10)}.pdf</span>
+  <span>Orbit Rebalancer · portfolio_report_${generatedAt.replace(/[^0-9-]/g, '').slice(0, 10)}.pdf</span>
   <span>Generated ${generatedAt}</span>
 </div>
 

@@ -1,6 +1,6 @@
 # Maintainer Triage Guide
 
-This guide helps maintainers efficiently triage issues and pull requests in the Stellar Portfolio Rebalancer repository.
+This guide helps maintainers efficiently triage issues and pull requests in the Orbit Rebalancer repository.
 
 ## Issue Triage
 

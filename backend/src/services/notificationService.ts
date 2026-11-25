@@ -438,7 +438,7 @@ Event Type: ${payload.eventType}
 Time: ${payload.timestamp}
 
 ---
-Stellar Portfolio Rebalancer
+Orbit Rebalancer
         `.trim();
   }
 
@@ -466,7 +466,7 @@ Stellar Portfolio Rebalancer
             <p><strong>Time:</strong> ${payload.timestamp}</p>
         </div>
         <div class="footer">
-            <p>Stellar Portfolio Rebalancer</p>
+            <p>Orbit Rebalancer</p>
         </div>
     </div>
 </body>
@@ -965,7 +965,7 @@ export class NotificationService {
       userId,
       eventType: "rebalance",
       title: "Test Notification",
-      message: "This is a test notification from Stellar Portfolio Rebalancer.",
+      message: "This is a test notification from Orbit Rebalancer.",
       deliveryId: `test-${userId}-${Date.now()}`,
       timestamp,
     };

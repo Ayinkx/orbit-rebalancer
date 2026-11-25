@@ -1,6 +1,6 @@
 # Soroban Development Cookbook
 
-This guide provides a practical reference for common Soroban CLI commands used when developing and interacting with the Stellar Portfolio Rebalancer contracts.
+This guide provides a practical reference for common Soroban CLI commands used when developing and interacting with the Orbit Rebalancer contracts.
 
 ## Local Testnet Workflows
 

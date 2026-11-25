@@ -1,10 +1,10 @@
 # Scripts
 
-Utility and automation scripts for the Stellar Portfolio Rebalancer monorepo.
+Utility and automation scripts for the Orbit Rebalancer monorepo.
 
 ## python_api_client.py
 
-A Python CLI client for the Stellar Portfolio Rebalancer REST API. Requires Python 3.8+ and the `requests` library.
+A Python CLI client for the Orbit Rebalancer REST API. Requires Python 3.8+ and the `requests` library.
 
 ### Setup
 

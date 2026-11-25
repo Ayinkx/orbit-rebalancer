@@ -1,4 +1,4 @@
-# Stellar Portfolio Rebalancer — README (Español)
+# Orbit Rebalancer — README (Español)
 
 <p align="center">
   <img src="https://img.shields.io/badge/Stellar-Reflector%20Protocol-blue" alt="Stellar" />
@@ -18,7 +18,7 @@
 
 ## Descripción General
 
-Stellar Portfolio Rebalancer es una **plataforma inteligente de gestión de carteras DeFi** construida sobre la blockchain Stellar que rebalancea automáticamente carteras de criptomonedas utilizando datos de precios en tiempo real de los oráculos Reflector.
+Orbit Rebalancer es una **plataforma inteligente de gestión de carteras DeFi** construida sobre la blockchain Stellar que rebalancea automáticamente carteras de criptomonedas utilizando datos de precios en tiempo real de los oráculos Reflector.
 
 Ayuda a los usuarios a mantener una asignación óptima de activos mediante rebalanceo automatizado activado por umbrales de desviación configurables, aprovechando la infraestructura rápida y de bajo costo de Stellar.
 
@@ -38,7 +38,7 @@ Ayuda a los usuarios a mantener una asignación óptima de activos mediante reba
 
 ## Hoja de Ruta del Proyecto
 
-Vea hacia dónde se dirige Stellar Portfolio Rebalancer.
+Vea hacia dónde se dirige Orbit Rebalancer.
 
 | **Ahora** (Sprint Actual)            | **Próximamente** (1-2 meses) | **Más Adelante** (3-6+ meses) |
 | :----------------------------------- | :--------------------------- | :---------------------------- |

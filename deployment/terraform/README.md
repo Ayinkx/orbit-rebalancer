@@ -1,6 +1,6 @@
 # Terraform Infrastructure
 
-This directory contains the Terraform configuration for deploying the Stellar Portfolio Rebalancer infrastructure.
+This directory contains the Terraform configuration for deploying the Orbit Rebalancer infrastructure.
 
 ## Workspaces
 

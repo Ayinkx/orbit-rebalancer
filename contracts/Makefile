@@ -1,4 +1,4 @@
-# Stellar Portfolio Rebalancer Contract Makefile
+# Orbit Rebalancer Contract Makefile
 
 
 

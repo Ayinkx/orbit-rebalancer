@@ -1,7 +1,7 @@
-# Gitleaks configuration for Stellar Portfolio Rebalancer
+# Gitleaks configuration for Orbit Rebalancer
 # Docs: https://github.com/gitleaks/gitleaks
 
-title = "Stellar Portfolio Rebalancer gitleaks config"
+title = "Orbit Rebalancer gitleaks config"
 
 # Extend the default gitleaks rules to catch known secret patterns.
 [extend]

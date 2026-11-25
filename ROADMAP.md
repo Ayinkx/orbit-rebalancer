@@ -1,6 +1,6 @@
 # Project Roadmap
 
-This roadmap outlines planned features and improvements for the Stellar Portfolio Rebalancer.
+This roadmap outlines planned features and improvements for the Orbit Rebalancer.
 
 *Last verified: 2026-09-30 against commit [`717ea95`](https://github.com/Ayinkx/orbit-rebalancer/commit/717ea95).*
 

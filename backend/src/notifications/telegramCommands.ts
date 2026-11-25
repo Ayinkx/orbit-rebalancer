@@ -27,7 +27,7 @@ export const LINK_INSTRUCTIONS = [
     'This chat is not linked to a Stellar address yet, so there are no portfolios to report on.',
     '',
     'To link:',
-    '1. Open the Stellar Portfolio Rebalancer web app.',
+    '1. Open the Orbit Rebalancer web app.',
     '2. Go to *Settings → Notifications → Telegram*.',
     '3. Enter this chat ID and confirm with your wallet signature.',
     '',

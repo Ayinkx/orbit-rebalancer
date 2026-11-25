@@ -89,12 +89,12 @@ describe('applySocialMeta', () => {
       title: 'Alpha Fund — $100,000',
       description: 'Shared portfolio with 3 assets.',
       imageUrl: 'https://api.example.com/card.png',
-      documentTitle: 'Alpha Fund — $100,000 | Stellar Portfolio Rebalancer',
+      documentTitle: 'Alpha Fund — $100,000 | Orbit Rebalancer',
     })
 
     expect(content('og:title')).toBe('Alpha Fund — $100,000')
     expect(content('twitter:card')).toBe('summary_large_image')
-    expect(document.title).toBe('Alpha Fund — $100,000 | Stellar Portfolio Rebalancer')
+    expect(document.title).toBe('Alpha Fund — $100,000 | Orbit Rebalancer')
   })
 
   it('replaces tags left over from a previous page', () => {

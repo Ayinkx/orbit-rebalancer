@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Stellar Portfolio Rebalancer - Python API Client.
+Orbit Rebalancer - Python API Client.
 
 A comprehensive Python client for interacting with the Stellar Portfolio
 Rebalancer API. Covers portfolio management, prices, rebalancing, history,
@@ -31,7 +31,7 @@ from typing import Dict, Any, Optional, List
 
 class RebalancerClient:
     """
-    HTTP client for the Stellar Portfolio Rebalancer REST API.
+    HTTP client for the Orbit Rebalancer REST API.
 
     Args:
         base_url: Root URL of the API. Defaults to http://localhost:3001/api/v1.
@@ -348,7 +348,7 @@ def cmd_plan(args: argparse.Namespace) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python_api_client.py",
-        description="Stellar Portfolio Rebalancer API client.",
+        description="Orbit Rebalancer API client.",
     )
     parser.add_argument(
         "--api-url",

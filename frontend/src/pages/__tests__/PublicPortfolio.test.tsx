@@ -69,7 +69,7 @@ describe('PublicPortfolio', () => {
   })
 
   afterEach(() => {
-    document.title = 'Stellar Portfolio Rebalancer'
+    document.title = 'Orbit Rebalancer'
     removeSocialMeta()
   })
 
@@ -121,8 +121,8 @@ describe('PublicPortfolio', () => {
     )
     expect(content('og:url')).toBe(window.location.href)
     expect(content('og:type')).toBe('website')
-    expect(content('og:site_name')).toBe('Stellar Portfolio Rebalancer')
-    expect(document.title).toBe('Alpha Fund — $100,000 | Stellar Portfolio Rebalancer')
+    expect(content('og:site_name')).toBe('Orbit Rebalancer')
+    expect(document.title).toBe('Alpha Fund — $100,000 | Orbit Rebalancer')
   })
 
   it('points og:image and the twitter card at the server-rendered share card', TEST_TIMEOUT, async () => {

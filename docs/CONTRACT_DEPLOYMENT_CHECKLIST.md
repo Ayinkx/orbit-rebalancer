@@ -1,6 +1,6 @@
 # Contract Deployment Checklist
 
-This guide provides step-by-step checklists for deploying the Stellar Portfolio Rebalancer contract to different environments. Use this to avoid mistakes and ensure consistent deployments.
+This guide provides step-by-step checklists for deploying the Orbit Rebalancer contract to different environments. Use this to avoid mistakes and ensure consistent deployments.
 
 > **Before integrating a frontend:** review the [Contract Capability Matrix & Frontend Compatibility Guide](CONTRACT_CAPABILITY_MATRIX.md) so the app can detect outdated or unsupported deployments before attempting writes.
 

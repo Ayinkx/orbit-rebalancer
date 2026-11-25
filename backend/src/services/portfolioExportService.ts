@@ -401,7 +401,7 @@ Generated: ${new Date().toISOString()}
 To change or stop these emails, update the export schedule for this portfolio in the app.
 
 ---
-Stellar Portfolio Rebalancer
+Orbit Rebalancer
     `.trim()
 }
 

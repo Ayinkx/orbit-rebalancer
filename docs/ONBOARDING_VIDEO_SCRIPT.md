@@ -1,7 +1,7 @@
 # Onboarding Video Script & Storyboard
 
 ## Overview
-This document provides a complete script and storyboard for creating an onboarding video that walks users through the Stellar Portfolio Rebalancer setup, portfolio creation, and rebalancing process.
+This document provides a complete script and storyboard for creating an onboarding video that walks users through the Orbit Rebalancer setup, portfolio creation, and rebalancing process.
 
 **Target Duration:** 3-4 minutes  
 **Target Audience:** New users with basic crypto knowledge  
@@ -17,7 +17,7 @@ This document provides a complete script and storyboard for creating an onboardi
 - Pan across the three feature cards (Smart Rebalancing, Multi-Wallet Support, Real-Time Feeds)
 
 ### Script
-> "Welcome to Stellar Portfolio Rebalancer - the intelligent DeFi platform that automatically maintains your crypto portfolio allocation. In just a few minutes, you'll learn how to set up your first portfolio and let our smart contracts handle the rebalancing for you."
+> "Welcome to Orbit Rebalancer - the intelligent DeFi platform that automatically maintains your crypto portfolio allocation. In just a few minutes, you'll learn how to set up your first portfolio and let our smart contracts handle the rebalancing for you."
 
 ### Key Points to Show
 - Clean, professional interface

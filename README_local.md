@@ -1,4 +1,4 @@
-# Stellar Portfolio Rebalancer
+# Orbit Rebalancer
 
 An intelligent portfolio rebalancing service built for the Stellar ecosystem, leveraging Reflector's price oracles for accurate, manipulation-resistant pricing data.
 

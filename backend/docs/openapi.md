@@ -2,7 +2,7 @@
 
 ## Overview
 
-The canonical OpenAPI 3.0 specification for the Stellar Portfolio Rebalancer API lives in **one place**:
+The canonical OpenAPI 3.0 specification for the Orbit Rebalancer API lives in **one place**:
 
 ```
 backend/src/openapi/spec.ts

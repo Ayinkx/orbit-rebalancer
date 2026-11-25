@@ -1,6 +1,6 @@
 # Glossary
 
-This glossary defines the main terms used across the Stellar Portfolio Rebalancer repository, including frontend concepts, backend API patterns, and Soroban smart contract terminology.
+This glossary defines the main terms used across the Orbit Rebalancer repository, including frontend concepts, backend API patterns, and Soroban smart contract terminology.
 
 ## How to use this glossary
 
