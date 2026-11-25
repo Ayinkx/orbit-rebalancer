@@ -125,26 +125,26 @@ Release changelog entries are generated into these sections:
 - Commit Reflector quotes and asset freshness together and preserve accepted quote ledgers on cached reads (#2027).
 - Capture a stable quote snapshot per rebalance plan and return zero trades when every asset is within the configured threshold (#2042, #2044).
 
-- Preserve state consistency and audit trail in Backtest price window ([#2077](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues/2077))
+- Preserve state consistency and audit trail in Backtest price window ([#2077](https://github.com/Ayinkx/orbit-rebalancer/issues/2077))
   - Persist backtest records (`running`, `completed`, `failed`) guaranteeing strict agreement between stored audit state and externally visible results (`includedDays`, `absentDayReasons`, `decision`, and `result`).
   - Added per-portfolio concurrency mutex to block conflicting overlapping backtests with HTTP 409 while maintaining strict isolation for independent runs.
   - Expose `GET /api/v1/backtest/:id`, `GET /api/v1/backtest`, `POST /api/portfolio/:id/backtest`, and `GET /api/portfolio/:id/backtests` endpoints documented in OpenAPI spec.
 
-- DELETE `/api/v1/notifications/unsubscribe` rejects unknown query fields and non-empty request bodies with HTTP 400 before changing notification preferences ([#1808](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues/1808)).
+- DELETE `/api/v1/notifications/unsubscribe` rejects unknown query fields and non-empty request bodies with HTTP 400 before changing notification preferences ([#1808](https://github.com/Ayinkx/orbit-rebalancer/issues/1808)).
 
-- Configurable analytics snapshot retention policy and admin management endpoints ([#1397](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues/1397))
+- Configurable analytics snapshot retention policy and admin management endpoints ([#1397](https://github.com/Ayinkx/orbit-rebalancer/issues/1397))
   - Added configurable retention cutoff (`ANALYTICS_COMPACTION_CUTOFF_DAYS`) and raw high-frequency snapshot window (`ANALYTICS_COMPACTION_RECENT_DAYS`) with startup validation and environment variable overrides.
   - Added `GET /api/admin/analytics/retention-policy` and `POST /api/admin/analytics/compact` endpoints with comprehensive admin auditing and validation.
   - Integrated retention policy into the background analytics compaction worker and analytics service with boundary-aware pruning and rollup logic.
 
-- Scheduled auto-rebalance dry-run mode with portfolio-level and environment configuration, simulated history/notifications, and no on-chain submission ([#1401](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues/1401))
+- Scheduled auto-rebalance dry-run mode with portfolio-level and environment configuration, simulated history/notifications, and no on-chain submission ([#1401](https://github.com/Ayinkx/orbit-rebalancer/issues/1401))
 
-- Multi-portfolio dashboard summary endpoint `GET /api/v1/portfolios/summary?userAddress=ADDR` ([#974](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues/974))
+- Multi-portfolio dashboard summary endpoint `GET /api/v1/portfolios/summary?userAddress=ADDR` ([#974](https://github.com/Ayinkx/orbit-rebalancer/issues/974))
   - Returns `id`, `name`, `total_value_usd`, `drift_status`, and `last_rebalanced` for every portfolio belonging to one address in a single request, replacing one call per portfolio
   - Resolves prices once from the oracle cache and shares them across the whole response; an address with no portfolios skips the price lookup entirely and returns an empty array
   - `drift_status` is `ok`, `warning`, or `critical`, measured against each portfolio's own rebalance threshold
 
-- Public roadmap with Now, Next, Later buckets ([#573](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues/573))
+- Public roadmap with Now, Next, Later buckets ([#573](https://github.com/Ayinkx/orbit-rebalancer/issues/573))
   - Created `docs/ROADMAP.md` with detailed project roadmap
   - Added roadmap summary table to `README.md` for quick reference
 

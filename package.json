@@ -1,5 +1,5 @@
 {
-  "name": "stellar-portfolio-rebalancer",
+  "name": "orbit-rebalancer",
   "version": "1.0.0",
   "private": true,
   "description": "Intelligent portfolio rebalancing service for Stellar ecosystem using Reflector oracles",
@@ -63,7 +63,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/stellar-portfolio-rebalancer"
+    "url": "https://github.com/Ayinkx/orbit-rebalancer"
   },
   "keywords": [
     "stellar",

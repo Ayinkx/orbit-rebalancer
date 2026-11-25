@@ -82,7 +82,7 @@ Contributors can validate the configuration, state consistency, and plan reprodu
 
 ### 1. Clean checkout prerequisites and defaults
 
-All variables in `variables.tf` provide documented, self-contained defaults (`project = "stellar-portfolio-rebalancer"`, `environment = "dev"`, `region = "us-east-1"`, `rollout_outcome_signal = "success"`). No undocumented local `.tfvars`, uncommitted credentials, or machine-local state files are required for initialisation or validation:
+All variables in `variables.tf` provide documented, self-contained defaults (`project = "orbit-rebalancer"`, `environment = "dev"`, `region = "us-east-1"`, `rollout_outcome_signal = "success"`). No undocumented local `.tfvars`, uncommitted credentials, or machine-local state files are required for initialisation or validation:
 
 ```bash
 # From a clean checkout without existing .terraform/ directories or local state:

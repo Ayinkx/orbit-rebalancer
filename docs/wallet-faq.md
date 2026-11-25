@@ -59,7 +59,7 @@ Your Freighter wallet is on a different network than the rebalancer expects. Swi
 
 ## Still Stuck?
 
-Open a [GitHub issue](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues/new) with:
+Open a [GitHub issue](https://github.com/Ayinkx/orbit-rebalancer/issues/new) with:
 - Your Freighter version
 - The exact error message
 - Steps to reproduce

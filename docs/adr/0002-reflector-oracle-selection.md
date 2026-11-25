@@ -58,11 +58,11 @@ To mitigate the risk of Reflector downtime or price staleness, a multi-tiered fa
 
 ### 1. On-Chain Fallback (Smart Contract)
 In the smart contracts:
-- We enforce a maximum price age of 1 hour (`REFLECTOR_PRICE_MAX_AGE_SECONDS = 3600` in [reflector.rs](file:///c:/Users/hp/stellar-portfolio-rebalancer/contracts/src/reflector.rs#L4)).
-- If a price is missing or stale, the portfolio contract skips the affected assets during preview generation to prevent rebalancing on bad data (see `build_rebalance_preview` in [portfolio.rs](file:///c:/Users/hp/stellar-portfolio-rebalancer/contracts/src/portfolio.rs#L123-L135)).
+- We enforce a maximum price age of 1 hour (`REFLECTOR_PRICE_MAX_AGE_SECONDS = 3600` in [reflector.rs](file:///c:/Users/hp/orbit-rebalancer/contracts/src/reflector.rs#L4)).
+- If a price is missing or stale, the portfolio contract skips the affected assets during preview generation to prevent rebalancing on bad data (see `build_rebalance_preview` in [portfolio.rs](file:///c:/Users/hp/orbit-rebalancer/contracts/src/portfolio.rs#L123-L135)).
 
 ### 2. Off-Chain Fallback (Backend Service)
-The backend `ReflectorService` (in [reflector.ts](file:///c:/Users/hp/stellar-portfolio-rebalancer/backend/src/services/reflector.ts#L20-L247)) implements a four-tiered resolution pipeline:
+The backend `ReflectorService` (in [reflector.ts](file:///c:/Users/hp/orbit-rebalancer/backend/src/services/reflector.ts#L20-L247)) implements a four-tiered resolution pipeline:
 1. **Primary Feed**: Query the Reflector API (`getReflectorPrices`).
 2. **Secondary Feed (CoinGecko)**: If the Reflector API is unavailable or returns stale prices, the service falls back to the CoinGecko API (Pro or Free tier) via `getFreshPrices`.
 3. **Tertiary Feed (Cache)**: If both external APIs are down, the service falls back to cached prices (stored in Redis or local memory) via `getCachedPrices`.

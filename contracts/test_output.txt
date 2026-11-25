@@ -1,4 +1,4 @@
-   Compiling portfolio-rebalancer v0.1.0 (/home/ayush99336/Desktop/BlockchainDev/drips/stellar-portfolio-rebalancer/contracts)
+   Compiling portfolio-rebalancer v0.1.0 (/home/ayush99336/Desktop/BlockchainDev/drips/orbit-rebalancer/contracts)
 warning: unused imports: `Symbol`, `Val`, and `Vec`
  --> src/test.rs:4:73
   |

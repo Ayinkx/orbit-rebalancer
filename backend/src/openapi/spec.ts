@@ -11,7 +11,7 @@ const spec: Record<string, any> = {
         version: '1.0.0',
         contact: {
             name: 'API Support',
-            url: 'https://github.com/your-username/stellar-portfolio-rebalancer',
+            url: 'https://github.com/Ayinkx/orbit-rebalancer',
         },
         license: { name: 'MIT', url: 'https://opensource.org/licenses/MIT' },
     },

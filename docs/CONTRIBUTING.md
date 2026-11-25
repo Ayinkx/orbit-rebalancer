@@ -22,8 +22,8 @@ One path to a fully running local stack. Follow each section in order; services 
 ## 1. Clone and install
 
 ```bash
-git clone https://github.com/your-org/stellar-portfolio-rebalancer.git
-cd stellar-portfolio-rebalancer
+git clone https://github.com/Ayinkx/orbit-rebalancer.git
+cd orbit-rebalancer
 
 # Backend
 cd backend && npm install
@@ -321,8 +321,8 @@ This walks through the exact steps a first-time contributor runs before opening 
 **Step 1 — Clone and install**
 
 ```bash
-git clone https://github.com/your-org/stellar-portfolio-rebalancer.git
-cd stellar-portfolio-rebalancer
+git clone https://github.com/Ayinkx/orbit-rebalancer.git
+cd orbit-rebalancer
 cd backend && npm install
 ```
 
@@ -348,7 +348,7 @@ Expected terminal output (abbreviated):
 > stellar-portfolio-backend@0.1.0 test
 > vitest run
 
- RUN  v4.1.11 /workspaces/stellar-portfolio-rebalancer/backend
+ RUN  v4.1.11 /workspaces/orbit-rebalancer/backend
 
 ...
 
@@ -374,7 +374,7 @@ Expected output:
 > stellar-portfolio-backend@0.1.0 test
 > vitest run src/test/snapshots/rebalanceSnapshots.test.ts --reporter=verbose
 
- RUN  v4.1.11 /workspaces/stellar-portfolio-rebalancer/backend
+ RUN  v4.1.11 /workspaces/orbit-rebalancer/backend
 
  ✓ src/test/snapshots/rebalanceSnapshots.test.ts > Rebalance Simulation Snapshots > produces deterministic output for "successful-rebalance" 2ms
  ✓ src/test/snapshots/rebalanceSnapshots.test.ts > Rebalance Simulation Snapshots > produces deterministic output for "partial-rebalance-no-trades-needed" 0ms
@@ -781,7 +781,7 @@ Major architectural decisions and their rationales are captured in **[docs/adr/]
 - [Architecture Decision Records (ADRs)](adr/README.md) — Rationale for major design choices
 - [Rebalancing strategies](REBALANCING_STRATEGIES.md)
 
-- [Wallet bug report template](https://github.com/ritik4ever/stellar-portfolio-rebalancer/blob/main/.github/ISSUE_TEMPLATE/wallet_bug_report.md) — Structured reproduction details for wallet issues
+- [Wallet bug report template](https://github.com/Ayinkx/orbit-rebalancer/blob/main/.github/ISSUE_TEMPLATE/wallet_bug_report.md) — Structured reproduction details for wallet issues
 - [Demo Walkthrough](DEMO_WALKTHROUGH.md) — Visual guide to platform features
 
 ### Architecture and Design

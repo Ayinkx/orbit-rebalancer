@@ -132,7 +132,7 @@ export const NetworkMismatchBanner: React.FC<NetworkMismatchBannerProps> = ({
           )}
           <div className="mt-3 flex gap-2">
             <a
-              href="https://github.com/bytebunders/stellar-portfolio-rebalancer/docs/WALLET_TROUBLESHOOTING.md"
+              href="https://github.com/bytebunders/orbit-rebalancer/docs/WALLET_TROUBLESHOOTING.md"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-blue-600 dark:text-blue-400 underline hover:text-blue-800"

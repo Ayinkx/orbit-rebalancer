@@ -188,7 +188,7 @@ resource "aws_ecs_task_definition" "main" {
   container_definitions = jsonencode([
     {
       name  = "backend"
-      image = "ghcr.io/ritik4ever/stellar-portfolio-rebalancer-backend:latest"
+      image = "ghcr.io/Ayinkx/orbit-rebalancer-backend:latest"
       portMappings = [
         {
           containerPort = 3000

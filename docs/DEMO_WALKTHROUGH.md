@@ -507,8 +507,8 @@ After completing this walkthrough, you should understand:
 **Need Help?**
 
 - 📚 [Full Documentation](../README.md)
-- 💬 [Community Discussions](https://github.com/ritik4ever/stellar-portfolio-rebalancer/discussions)
-- 🐛 [Report Issues](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues/new/choose)
+- 💬 [Community Discussions](https://github.com/Ayinkx/orbit-rebalancer/discussions)
+- 🐛 [Report Issues](https://github.com/Ayinkx/orbit-rebalancer/issues/new/choose)
 - 📧 [Contact Support](mailto:support@example.com)
 
 ---

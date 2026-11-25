@@ -28,7 +28,7 @@ For a quick overview of the API contract see [API.md](API.md). Background servic
 
 ## Workflow
 
-1. **Check existing issues** or [create a new one](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues/new/choose) using our issue templates
+1. **Check existing issues** or [create a new one](https://github.com/Ayinkx/orbit-rebalancer/issues/new/choose) using our issue templates
 2. Fork the repository and create a feature branch: `git checkout -b feature/your-feature`
 3. Review the key project terms in [docs/GLOSSARY.md](docs/GLOSSARY.md)
 4. Follow the setup guide in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
@@ -59,7 +59,7 @@ We provide templates for common contribution types:
 - **Operations** - Infrastructure or deployment concerns
 - **Security** - Report security vulnerabilities (use private disclosure for critical issues)
 
-[Create an issue ←](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues/new/choose)
+[Create an issue ←](https://github.com/Ayinkx/orbit-rebalancer/issues/new/choose)
 
 ## Secrets Scanning
 

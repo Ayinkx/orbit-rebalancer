@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/license-MIT-brightgreen" alt="License" />
 </p>
 
-[![GitHub Repo](https://img.shields.io/badge/repo-Stellar%20Portfolio%20Rebalancer-blue?style=flat-square)](https://github.com/ritik4ever/stellar-portfolio-rebalancer)
+[![GitHub Repo](https://img.shields.io/badge/repo-Stellar%20Portfolio%20Rebalancer-blue?style=flat-square)](https://github.com/Ayinkx/orbit-rebalancer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Docs:** [English](README.md) · [Español](docs/README.es.md) · [Português](docs/README.pt.md)
@@ -62,7 +62,7 @@ See where the Stellar Portfolio Rebalancer is headed!
 ## Architecture
 
 ```text
-stellar-portfolio-rebalancer/
+orbit-rebalancer/
 ├── contracts/     # Soroban smart contracts
 ├── frontend/      # React + TypeScript frontend
 ├── backend/       # Node.js + Express API
@@ -106,8 +106,8 @@ Stellar wallet (Freighter or Rabet recommended)
 Installation
 Bash
 # Clone the repository
-git clone [https://github.com/ritik4ever/stellar-portfolio-rebalancer.git](https://github.com/ritik4ever/stellar-portfolio-rebalancer.git)
-cd stellar-portfolio-rebalancer
+git clone [https://github.com/Ayinkx/orbit-rebalancer.git](https://github.com/Ayinkx/orbit-rebalancer.git)
+cd orbit-rebalancer
 
 # Frontend Setup
 cd frontend

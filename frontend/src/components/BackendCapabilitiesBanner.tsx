@@ -15,27 +15,27 @@ interface NoticeHint {
 const NOTICE_HINTS: Record<string, NoticeHint> = {
     database: {
         label: 'Database setup',
-        href: 'https://github.com/ritik4ever/stellar-portfolio-rebalancer#database-setup',
+        href: 'https://github.com/Ayinkx/orbit-rebalancer#database-setup',
     },
     'queue-workers': {
         label: 'Redis / worker setup',
-        href: 'https://github.com/ritik4ever/stellar-portfolio-rebalancer/blob/main/docs/CONTRIBUTING.md',
+        href: 'https://github.com/Ayinkx/orbit-rebalancer/blob/main/docs/CONTRIBUTING.md',
     },
     queue: {
         label: 'Redis / worker setup',
-        href: 'https://github.com/ritik4ever/stellar-portfolio-rebalancer/blob/main/docs/CONTRIBUTING.md',
+        href: 'https://github.com/Ayinkx/orbit-rebalancer/blob/main/docs/CONTRIBUTING.md',
     },
     workers: {
         label: 'Redis / worker setup',
-        href: 'https://github.com/ritik4ever/stellar-portfolio-rebalancer/blob/main/docs/CONTRIBUTING.md',
+        href: 'https://github.com/Ayinkx/orbit-rebalancer/blob/main/docs/CONTRIBUTING.md',
     },
     indexer: {
         label: 'Environment setup',
-        href: 'https://github.com/ritik4ever/stellar-portfolio-rebalancer/blob/main/docs/ENVIRONMENT.md',
+        href: 'https://github.com/Ayinkx/orbit-rebalancer/blob/main/docs/ENVIRONMENT.md',
     },
     'auto-rebalancer': {
         label: 'Environment setup',
-        href: 'https://github.com/ritik4ever/stellar-portfolio-rebalancer/blob/main/docs/ENVIRONMENT.md',
+        href: 'https://github.com/Ayinkx/orbit-rebalancer/blob/main/docs/ENVIRONMENT.md',
     },
 }
 

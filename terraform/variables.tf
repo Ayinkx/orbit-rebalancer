@@ -13,7 +13,7 @@ variable "environment" {
 variable "project" {
   description = "Project name used for tagging and resource naming"
   type        = string
-  default     = "stellar-portfolio-rebalancer"
+  default     = "orbit-rebalancer"
 }
 
 variable "budget_limit" {

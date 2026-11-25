@@ -1,6 +1,6 @@
 # Stellar Portfolio Rebalancer - Public Roadmap
 
-*Last verified: 2026-09-29 against commit [`717ea95`](https://github.com/ritik4ever/stellar-portfolio-rebalancer/commit/717ea95).*
+*Last verified: 2026-09-29 against commit [`717ea95`](https://github.com/Ayinkx/orbit-rebalancer/commit/717ea95).*
 
 ## ✅ Shipped
 

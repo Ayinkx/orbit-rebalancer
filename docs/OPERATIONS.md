@@ -160,7 +160,7 @@ If the container remains `starting`, wait for readiness and inspect `/readiness`
 The portfolio rebalancing infrastructure defines AWS alerting, budgets, and rollout outcome detection (`terraform/` and `deployment/terraform/`). A contributor can validate state consistency, reproduce clean plans without infrastructure changes, and execute safe rollback steps from a fresh checkout or isolated service without undocumented local state.
 
 1. **Clean environment initialisation and verification**:
-   All root module variables have self-contained defaults (`project = "stellar-portfolio-rebalancer"`, `environment = "dev"`, `region = "us-east-1"`). Initialisation succeeds without requiring pre-existing `.env` secrets or machine-local state files:
+   All root module variables have self-contained defaults (`project = "orbit-rebalancer"`, `environment = "dev"`, `region = "us-east-1"`). Initialisation succeeds without requiring pre-existing `.env` secrets or machine-local state files:
    ```bash
    cd terraform
    terraform init -input=false

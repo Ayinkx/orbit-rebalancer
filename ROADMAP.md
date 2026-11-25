@@ -2,7 +2,7 @@
 
 This roadmap outlines planned features and improvements for the Stellar Portfolio Rebalancer.
 
-*Last verified: 2026-09-30 against commit [`717ea95`](https://github.com/ritik4ever/stellar-portfolio-rebalancer/commit/717ea95).*
+*Last verified: 2026-09-30 against commit [`717ea95`](https://github.com/Ayinkx/orbit-rebalancer/commit/717ea95).*
 
 ## ✅ Shipped
 
@@ -31,7 +31,7 @@ These items previously appeared here as "in progress" or "upcoming" work. They a
 
 ## Contributing
 
-Interested in helping with any of these items? Check [open issues](https://github.com/ritik4ever/stellar-portfolio-rebalancer/issues) or open a new one to discuss.
+Interested in helping with any of these items? Check [open issues](https://github.com/Ayinkx/orbit-rebalancer/issues) or open a new one to discuss.
 
 ## Changelog
 

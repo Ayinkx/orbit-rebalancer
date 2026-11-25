@@ -149,7 +149,7 @@ groups:
           severity: warning
           subsystem: portfolio-engine
           service: queue
-          runbook: https://github.com/anupam7984/stellar-portfolio-rebalancer/blob/main/docs/OPERATIONS.md#queue-operations-monitoring
+          runbook: https://github.com/anupam7984/orbit-rebalancer/blob/main/docs/OPERATIONS.md#queue-operations-monitoring
         annotations:
           summary: Rebalance queue backlog exceeds threshold
           description: The rebalance queue has accumulated {{ $value }} waiting jobs for more than 10 minutes. This indicates workers may be stuck or scaled down. Check the queue-operations dashboard and worker logs. See runbook for resolution steps.

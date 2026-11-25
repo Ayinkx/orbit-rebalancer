@@ -10,7 +10,7 @@ assignees: ''
 
 **For Critical Vulnerabilities:**  
 Please **DO NOT** create a public issue. Instead, report privately via:
-- GitHub Security Advisories (preferred): [Report a vulnerability](https://github.com/ritik4ever/stellar-portfolio-rebalancer/security/advisories/new)
+- GitHub Security Advisories (preferred): [Report a vulnerability](https://github.com/Ayinkx/orbit-rebalancer/security/advisories/new)
 - Email: [security contact - add your email here]
 
 **For Low-Risk Security Improvements:**  

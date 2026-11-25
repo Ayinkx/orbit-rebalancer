@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/license-MIT-brightgreen" alt="Licença" />
 </p>
 
-[![GitHub Repo](https://img.shields.io/badge/repo-Stellar%20Portfolio%20Rebalancer-blue?style=flat-square)](https://github.com/ritik4ever/stellar-portfolio-rebalancer)
+[![GitHub Repo](https://img.shields.io/badge/repo-Stellar%20Portfolio%20Rebalancer-blue?style=flat-square)](https://github.com/Ayinkx/orbit-rebalancer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **Nota:** Tradução sincronizada com a versão mais recente do [README principal](../README.md) (Última atualização: Agosto de 2026).
@@ -54,7 +54,7 @@ Veja para onde o Stellar Portfolio Rebalancer está caminhando!
 ## Arquitetura
 
 ```text
-stellar-portfolio-rebalancer/
+orbit-rebalancer/
 ├── contracts/     # Contratos inteligentes Soroban
 ├── frontend/      # Frontend React + TypeScript
 ├── backend/       # API Node.js + Express
@@ -97,8 +97,8 @@ Novos contribuidores devem ler o glossário antes de aprofundar na configuraçã
 
 ```bash
 # Clonar o repositório
-git clone https://github.com/ritik4ever/stellar-portfolio-rebalancer.git
-cd stellar-portfolio-rebalancer
+git clone https://github.com/Ayinkx/orbit-rebalancer.git
+cd orbit-rebalancer
 
 # Configuração do Frontend
 cd frontend

@@ -1,4 +1,4 @@
-﻿# Security Policy
+# Security Policy
 
 Last verified: 2026-09-29 against commit `717ea953f3a338c35bfdbc73e06eddb95f216273` on `main`.
 
@@ -14,7 +14,7 @@ Please **do not** open a public issue for a security vulnerability.
 
 Use the **Report a vulnerability** button on the Security tab, which opens a private GitHub Security Advisory:
 
-https://github.com/ritik4ever/stellar-portfolio-rebalancer/security/advisories/new
+https://github.com/Ayinkx/orbit-rebalancer/security/advisories/new
 
 A public security mailbox is not configured. `docs/TRIAGE.md` and `.github/ISSUE_TEMPLATE/security.md` both treat GitHub Security Advisories as the disclosure channel. Low-risk hardening suggestions that are not vulnerabilities may use the public security issue template.
 
