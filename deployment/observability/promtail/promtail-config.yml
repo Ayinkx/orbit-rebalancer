@@ -25,7 +25,7 @@ scrape_configs:
       - targets: [localhost]
         labels:
           job: backend
-          service: stellar-portfolio-backend
+          service: orbit-rebalancer-backend
           __path__: /var/log/portfolio-backend/*.log
     pipeline_stages:
       # Parse JSON payload

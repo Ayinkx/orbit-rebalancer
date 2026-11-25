@@ -345,7 +345,7 @@ npm test
 Expected terminal output (abbreviated):
 
 ```
-> stellar-portfolio-backend@0.1.0 test
+> orbit-rebalancer-backend@0.1.0 test
 > vitest run
 
  RUN  v4.1.11 /workspaces/orbit-rebalancer/backend
@@ -371,7 +371,7 @@ npm test -- src/test/snapshots/rebalanceSnapshots.test.ts --reporter=verbose
 Expected output:
 
 ```
-> stellar-portfolio-backend@0.1.0 test
+> orbit-rebalancer-backend@0.1.0 test
 > vitest run src/test/snapshots/rebalanceSnapshots.test.ts --reporter=verbose
 
  RUN  v4.1.11 /workspaces/orbit-rebalancer/backend

@@ -145,15 +145,15 @@ TASK_DEF_ARN=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVI
 # For credential-only recovery, this preserves the current service revision
 # captured above instead.
 TASK_DEF_ARN=${TASK_DEF_ARN:-$(aws ecs describe-task-definition \
-  --task-definition stellar-portfolio-production-app \
+  --task-definition orbit-rebalancer-production-app \
   --query 'taskDefinition.taskDefinitionArn' \
   --output text)}
 
 # 2. Create the deployment
 aws deploy create-deployment \
-  --application-name stellar-portfolio-production-ecs-app \
-  --deployment-group-name stellar-portfolio-production-deployment-group \
-  --deployment-config-name stellar-portfolio-production-ecs-deployment-config \
+  --application-name orbit-rebalancer-production-ecs-app \
+  --deployment-group-name orbit-rebalancer-production-deployment-group \
+  --deployment-config-name orbit-rebalancer-production-ecs-deployment-config \
   --description "Deploy $(date -u +%Y-%m-%dT%H:%MZ)" \
   --revision '{
     "revisionType": "AppSpecContent",
@@ -165,8 +165,8 @@ aws deploy create-deployment \
 
 ### Via AWS Console
 
-1. Open **CodeDeploy → Applications → `stellar-portfolio-production-ecs-app`**.
-2. Select **`stellar-portfolio-production-deployment-group`**.
+1. Open **CodeDeploy → Applications → `orbit-rebalancer-production-ecs-app`**.
+2. Select **`orbit-rebalancer-production-deployment-group`**.
 3. Click **Create deployment**.
 4. Set **Revision type** to `AppSpec content` and provide the task definition ARN.
 5. Review the settings and click **Deploy**.
@@ -196,8 +196,8 @@ automatic rollback before any production traffic is affected.
 ```bash
 # List recent deployments for the group
 aws deploy list-deployments \
-  --application-name stellar-portfolio-production-ecs-app \
-  --deployment-group-name stellar-portfolio-production-deployment-group \
+  --application-name orbit-rebalancer-production-ecs-app \
+  --deployment-group-name orbit-rebalancer-production-deployment-group \
   --query 'deployments' \
   --output table
 
@@ -242,7 +242,7 @@ receive real-time alerts.
 ```bash
 # Subscribe an email address
 aws sns subscribe \
-  --topic-arn arn:aws:sns:us-east-1:123456789012:stellar-portfolio-production-deployment-notifications \
+  --topic-arn arn:aws:sns:us-east-1:123456789012:orbit-rebalancer-production-deployment-notifications \
   --protocol email \
   --notification-endpoint ops-team@example.com
 ```
@@ -273,12 +273,12 @@ aws deploy stop-deployment \
   --auto-rollback-enabled
 
 # Option 2 – Create a new deployment targeting the previous task definition
-PREV_TASK_DEF_ARN="arn:aws:ecs:us-east-1:123456789012:task-definition/stellar-portfolio-production-app:N"
+PREV_TASK_DEF_ARN="arn:aws:ecs:us-east-1:123456789012:task-definition/orbit-rebalancer-production-app:N"
 
 aws deploy create-deployment \
-  --application-name stellar-portfolio-production-ecs-app \
-  --deployment-group-name stellar-portfolio-production-deployment-group \
-  --deployment-config-name stellar-portfolio-production-ecs-deployment-config \
+  --application-name orbit-rebalancer-production-ecs-app \
+  --deployment-group-name orbit-rebalancer-production-deployment-group \
+  --deployment-config-name orbit-rebalancer-production-ecs-deployment-config \
   --description "Rollback to revision N" \
   --revision '{
     "revisionType": "AppSpecContent",
@@ -304,7 +304,7 @@ The green target group is not passing health checks. Check:
 ```bash
 # Fetch the last 100 lines of the backend log stream
 aws logs get-log-events \
-  --log-group-name /ecs/stellar-portfolio-production-backend \
+  --log-group-name /ecs/orbit-rebalancer-production-backend \
   --log-stream-name ecs/backend/<task-id> \
   --limit 100
 ```
@@ -330,12 +330,12 @@ Verify the alarm name in CodeDeploy matches exactly:
 
 ```bash
 aws deploy get-deployment-group \
-  --application-name stellar-portfolio-production-ecs-app \
-  --deployment-group-name stellar-portfolio-production-deployment-group \
+  --application-name orbit-rebalancer-production-ecs-app \
+  --deployment-group-name orbit-rebalancer-production-deployment-group \
   --query 'deploymentGroupInfo.alarmConfiguration'
 ```
 
-The alarm name should be `stellar-portfolio-production-deployment-alarm`.
+The alarm name should be `orbit-rebalancer-production-deployment-alarm`.
 
 ---
 

@@ -25,7 +25,7 @@ Each line is logged with the message `[GUARDRAIL] <guardrail> <outcome>` and the
 
 These lines never include wallet addresses, keys, signatures, or provider credentials.
 
-Example Loki query: `{service="stellar-portfolio-backend"} |= "[GUARDRAIL]" | json | outcome="blocked"`.
+Example Loki query: `{service="orbit-rebalancer-backend"} |= "[GUARDRAIL]" | json | outcome="blocked"`.
 
 ## Circuit breaker
 

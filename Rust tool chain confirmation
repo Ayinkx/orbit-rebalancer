@@ -304,8 +304,8 @@ READINESS_CACHE_TTL_MS=2000
 OTEL_ENABLED=false
 # OTLP collector endpoint for traces | URL | # Optional (default: http://localhost:4318/v1/traces)
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
-# OpenTelemetry service name | string | # Optional (default: stellar-portfolio-backend)
-OTEL_SERVICE_NAME=stellar-portfolio-backend
+# OpenTelemetry service name | string | # Optional (default: orbit-rebalancer-backend)
+OTEL_SERVICE_NAME=orbit-rebalancer-backend
 # Enable Swagger API documentation UI | boolean | # Optional (default: true in dev, false in prod)
 ENABLE_API_DOCS=true
 # Enable backend Sentry integration | boolean | # Optional (default: false)
@@ -322,8 +322,8 @@ SENTRY_TRACES_SAMPLE_RATE=0.2
 SENTRY_PROFILES_SAMPLE_RATE=0.1
 # Enable New Relic APM integration | boolean | # Optional (default: false)
 NEW_RELIC_ENABLED=false
-# New Relic service name | string | # Optional (default: stellar-portfolio-backend)
-NEW_RELIC_APP_NAME=stellar-portfolio-backend
+# New Relic service name | string | # Optional (default: orbit-rebalancer-backend)
+NEW_RELIC_APP_NAME=orbit-rebalancer-backend
 # New Relic license key | string | # Optional (default: empty)
 NEW_RELIC_LICENSE_KEY=
 # Enable New Relic distributed tracing | boolean | # Optional (default: true)
@@ -334,8 +334,8 @@ NEW_RELIC_LOG=stdout
 METRICS_ENABLED=true
 # Prefix for all emitted metric names | string | # Optional (default: stellar_portfolio_)
 METRICS_PREFIX=stellar_portfolio_
-# Default service label attached to emitted metrics | string | # Optional (default: stellar-portfolio-backend)
-METRICS_DEFAULT_LABELS_SERVICE=stellar-portfolio-backend
+# Default service label attached to emitted metrics | string | # Optional (default: orbit-rebalancer-backend)
+METRICS_DEFAULT_LABELS_SERVICE=orbit-rebalancer-backend
 # Optional contact label for alert routing metadata | string | # Optional (default: platform-oncall)
 ALERT_CONTACT=platform-oncall
 # Slack incoming webhook URL for operational alerts | URL | # Optional (default: empty)

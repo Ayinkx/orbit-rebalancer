@@ -30,7 +30,7 @@ export const observabilityConfig = {
     metrics: {
         enabled: parseBoolean(process.env.METRICS_ENABLED, true),
         prefix: process.env.METRICS_PREFIX || 'stellar_portfolio_',
-        serviceName: process.env.METRICS_DEFAULT_LABELS_SERVICE || 'stellar-portfolio-backend',
+        serviceName: process.env.METRICS_DEFAULT_LABELS_SERVICE || 'orbit-rebalancer-backend',
         deploymentEnv: process.env.LOG_DEPLOYMENT_ENV || process.env.NODE_ENV || 'development',
         alertContact: process.env.ALERT_CONTACT || 'platform-oncall',
     },

@@ -362,7 +362,7 @@ Sentry DSNs are project-scoped and do not grant account access, but they can be 
 |---|---|---|---|---|---|
 | `OTEL_ENABLED` | No | `false` | Enables OpenTelemetry tracing. | `true` | |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | No | `http://localhost:4318/v1/traces` | OpenTelemetry OTLP exporter endpoint (`backend/src/observability/tracing.ts`). | `http://localhost:4318/v1/traces` | |
-| `OTEL_SERVICE_NAME` | No | `stellar-portfolio-backend` | OpenTelemetry service name. | `stellar-portfolio-backend` | |
+| `OTEL_SERVICE_NAME` | No | `orbit-rebalancer-backend` | OpenTelemetry service name. | `orbit-rebalancer-backend` | |
 | `SENTRY_ENABLED` | No | `false` | Enables the backend Sentry integration. | `true` | |
 | `SENTRY_DSN` | No | _(empty)_ | Sentry project DSN for error and performance reporting. | _(see Sentry dashboard)_ | ⚠️ SECRET — if exposed publicly, rotate via Sentry project settings. See [rotation guide](#sentry_dsn--vite_sentry_dsn). |
 | `SENTRY_ENVIRONMENT` | No | `development` | Sentry environment tag. Set to the deployed tier, not the local shell mode. | `production` | |
@@ -370,13 +370,13 @@ Sentry DSNs are project-scoped and do not grant account access, but they can be 
 | `SENTRY_TRACES_SAMPLE_RATE` | No | `0.2` | Fraction of transactions sent to Sentry as traces (0–1). | `0.05` | |
 | `SENTRY_PROFILES_SAMPLE_RATE` | No | `0.1` | Fraction of traces that include profiling data (0–1). | `0.05` | |
 | `NEW_RELIC_ENABLED` | No | `false` | Enables the New Relic APM integration. | `true` | |
-| `NEW_RELIC_APP_NAME` | No | `stellar-portfolio-backend` | New Relic application name shown in the console. | `stellar-portfolio-production` | |
+| `NEW_RELIC_APP_NAME` | No | `orbit-rebalancer-backend` | New Relic application name shown in the console. | `orbit-rebalancer-production` | |
 | `NEW_RELIC_LICENSE_KEY` | No | _(empty)_ | New Relic ingest license key. | _(use secrets manager)_ | ⚠️ SECRET — rotate via New Relic console. See [rotation guide](#new_relic_license_key). |
 | `NEW_RELIC_DISTRIBUTED_TRACING_ENABLED` | No | `true` | Enables distributed tracing in New Relic. | `true` | |
 | `NEW_RELIC_LOG` | No | `stdout` | New Relic agent log output destination. | `stdout` | |
 | `METRICS_ENABLED` | No | `true` | Exposes a Prometheus-compatible `/metrics` endpoint. | `true` | |
 | `METRICS_PREFIX` | No | `stellar_portfolio_` | Prefix applied to all emitted metric names. | `stellar_portfolio_` | |
-| `METRICS_DEFAULT_LABELS_SERVICE` | No | `stellar-portfolio-backend` | Default service label attached to all emitted metrics. | `stellar-portfolio-backend` | |
+| `METRICS_DEFAULT_LABELS_SERVICE` | No | `orbit-rebalancer-backend` | Default service label attached to all emitted metrics. | `orbit-rebalancer-backend` | |
 | `ALERT_CONTACT` | No | `platform-oncall` | Alert-routing metadata label for operations tooling. | `platform-oncall` | |
 | `MONITORING_SLACK_WEBHOOK_URL` | No | _(empty)_ | Slack incoming webhook URL for operational alerts. | _(use secrets manager)_ | ⚠️ SECRET — rotate via Slack app settings. |
 | `PAGERDUTY_ROUTING_KEY` | No | _(empty)_ | PagerDuty Events API v2 routing key for operational alerts. | _(use secrets manager)_ | ⚠️ SECRET — rotate via PagerDuty service settings. |

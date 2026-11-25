@@ -358,7 +358,7 @@ class EmailProvider implements NotificationProvider {
     const mailOptions = {
       from: process.env.SMTP_FROM || "noreply@stellarportfolio.com",
       to: recipientEmail,
-      subject: `[Stellar Portfolio] ${payload.title}`,
+      subject: `[Orbit Rebalancer] ${payload.title}`,
       text: this.formatTextEmail(payload),
       html: this.formatHtmlEmail(payload),
       // Stable across retries so a possibly-delivered message can be
@@ -537,7 +537,7 @@ export class NotificationService {
     this.getPreferences(userId)
     const code = generateVerificationCode()
     dbSaveSmsVerification({ userId, phoneNumber: normalized, codeHash: hashVerificationCode(userId, normalized, code), expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString() })
-    await sendSms(client, { userId, phone: normalized, eventType: 'phone_verification', body: `Your Stellar Portfolio verification code is ${code}` }, { ...this.deliveryConfig.webhook, maxAttempts: 1 })
+    await sendSms(client, { userId, phone: normalized, eventType: 'phone_verification', body: `Your Orbit Rebalancer verification code is ${code}` }, { ...this.deliveryConfig.webhook, maxAttempts: 1 })
   }
 
   confirmSmsVerification(userId: string, code: string): boolean {

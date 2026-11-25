@@ -3,50 +3,50 @@
 
  [32mΓ£ô[39m src/test/apiErrorHandler.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 705[2mms[22m[39m
      [33m[2mΓ£ô[22m[39m delegates to next when headers already sent [33m 692[2mms[22m[39m
-{"level":30,"time":"2026-03-24T11:59:50.662Z","service":"stellar-portfolio-backend","eventId":"evt-1","isAutomatic":false,"msg":"[REBALANCE-HISTORY] Recorded rebalance event"}
+{"level":30,"time":"2026-03-24T11:59:50.662Z","service":"orbit-rebalancer-backend","eventId":"evt-1","isAutomatic":false,"msg":"[REBALANCE-HISTORY] Recorded rebalance event"}
  [32mΓ£ô[39m src/test/rebalanceHistory.service.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2558[2mms[22m[39m
      [33m[2mΓ£ô[22m[39m records enriched rebalance events with derived details [33m 2532[2mms[22m[39m
-{"level":40,"time":"2026-03-24T11:59:50.724Z","service":"stellar-portfolio-backend","path":"/api/test","body":{"amount":"x"},"errors":[{"field":"amount","message":"Invalid input: expected number, received string"}],"msg":"Strict Validation Error"}
+{"level":40,"time":"2026-03-24T11:59:50.724Z","service":"orbit-rebalancer-backend","path":"/api/test","body":{"amount":"x"},"errors":[{"field":"amount","message":"Invalid input: expected number, received string"}],"msg":"Strict Validation Error"}
  [32mΓ£ô[39m src/test/validate.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1099[2mms[22m[39m
      [33m[2mΓ£ô[22m[39m passes and normalizes valid payload [33m 1076[2mms[22m[39m
-{"level":30,"time":"2026-03-24T11:59:50.840Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:51.057Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy column to portfolios"}
-{"level":40,"time":"2026-03-24T11:59:51.074Z","service":"stellar-portfolio-backend","msg":"[LOCK_SERVICE] Redis not available, using in-memory fallback locking (single-node only)"}
-{"level":40,"time":"2026-01-01T00:00:00.000Z","service":"stellar-portfolio-backend","msg":"[LOCK_SERVICE] Redis not available, using in-memory fallback locking (single-node only)"}
+{"level":30,"time":"2026-03-24T11:59:50.840Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:51.057Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy column to portfolios"}
+{"level":40,"time":"2026-03-24T11:59:51.074Z","service":"orbit-rebalancer-backend","msg":"[LOCK_SERVICE] Redis not available, using in-memory fallback locking (single-node only)"}
+{"level":40,"time":"2026-01-01T00:00:00.000Z","service":"orbit-rebalancer-backend","msg":"[LOCK_SERVICE] Redis not available, using in-memory fallback locking (single-node only)"}
  [32mΓ£ô[39m src/test/rebalanceLock.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2984[2mms[22m[39m
      [33m[2mΓ£ô[22m[39m acquires, rejects concurrent lock, and releases [33m 2948[2mms[22m[39m
  [32mΓ£ô[39m src/test/debugGate.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 62[2mms[22m[39m
-{"level":30,"time":"2026-03-24T11:59:51.263Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:51.443Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:51.568Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:51.792Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:50.850Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:50.852Z","service":"stellar-portfolio-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
-{"level":30,"time":"2026-03-24T11:59:50.852Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353588162-3zje3nabgro\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:50.857Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353588162-3zje3nabgro\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:51.058Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:51.059Z","service":"stellar-portfolio-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
-{"level":30,"time":"2026-03-24T11:59:51.059Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353590900-dry9n2zuhdt\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:51.063Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353590900-dry9n2zuhdt\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:51.277Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:51.279Z","service":"stellar-portfolio-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
-{"level":30,"time":"2026-03-24T11:59:51.279Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591080-a7rcerr1sdm\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:51.285Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591080-a7rcerr1sdm\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:51.444Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:51.445Z","service":"stellar-portfolio-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
-{"level":30,"time":"2026-03-24T11:59:51.445Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591295-hvadzwky9ji\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:51.451Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591295-hvadzwky9ji\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:51.572Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:51.575Z","service":"stellar-portfolio-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
-{"level":30,"time":"2026-03-24T11:59:51.576Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591457-o0nrsl67uw8\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:51.589Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591457-o0nrsl67uw8\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:51.793Z","service":"stellar-portfolio-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
-{"level":30,"time":"2026-03-24T11:59:51.796Z","service":"stellar-portfolio-backend","msg":"[DB] Demo data seeded (portfolio + 3 history events)"}
-{"level":30,"time":"2026-03-24T11:59:51.801Z","service":"stellar-portfolio-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
-{"level":30,"time":"2026-03-24T11:59:51.801Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591600-1f78uehawzyh\\portfolio.db","msg":"[DB] SQLite database ready"}
-{"level":30,"time":"2026-03-24T11:59:51.805Z","service":"stellar-portfolio-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591600-1f78uehawzyh\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.263Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:51.443Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:51.568Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:51.792Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:50.850Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:50.852Z","service":"orbit-rebalancer-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
+{"level":30,"time":"2026-03-24T11:59:50.852Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353588162-3zje3nabgro\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:50.857Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353588162-3zje3nabgro\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.058Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:51.059Z","service":"orbit-rebalancer-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
+{"level":30,"time":"2026-03-24T11:59:51.059Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353590900-dry9n2zuhdt\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.063Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353590900-dry9n2zuhdt\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.277Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:51.279Z","service":"orbit-rebalancer-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
+{"level":30,"time":"2026-03-24T11:59:51.279Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591080-a7rcerr1sdm\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.285Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591080-a7rcerr1sdm\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.444Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:51.445Z","service":"orbit-rebalancer-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
+{"level":30,"time":"2026-03-24T11:59:51.445Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591295-hvadzwky9ji\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.451Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591295-hvadzwky9ji\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.572Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:51.575Z","service":"orbit-rebalancer-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
+{"level":30,"time":"2026-03-24T11:59:51.576Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591457-o0nrsl67uw8\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.589Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591457-o0nrsl67uw8\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.793Z","service":"orbit-rebalancer-backend","msg":"[DB] Migration: added strategy_config column to portfolios"}
+{"level":30,"time":"2026-03-24T11:59:51.796Z","service":"orbit-rebalancer-backend","msg":"[DB] Demo data seeded (portfolio + 3 history events)"}
+{"level":30,"time":"2026-03-24T11:59:51.801Z","service":"orbit-rebalancer-backend","msg":"[DB] Seeded default assets (XLM, USDC, BTC, ETH)"}
+{"level":30,"time":"2026-03-24T11:59:51.801Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591600-1f78uehawzyh\\portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:51.805Z","service":"orbit-rebalancer-backend","dbPath":"C:\\Users\\hp\\AppData\\Local\\Temp\\db-service-test-1774353591600-1f78uehawzyh\\portfolio.db","msg":"[DB] SQLite database ready"}
  [32mΓ£ô[39m src/test/decimal.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 31[2mms[22m[39m
-{"level":30,"time":"2026-03-24T11:59:52.004Z","service":"stellar-portfolio-backend","dbPath":"./data/portfolio.db","msg":"[DB] SQLite database ready"}
+{"level":30,"time":"2026-03-24T11:59:52.004Z","service":"orbit-rebalancer-backend","dbPath":"./data/portfolio.db","msg":"[DB] SQLite database ready"}
  [32mΓ£ô[39m src/test/riskManagements.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 53[2mms[22m[39m
  [31mΓ¥»[39m src/test/databaseService.test.ts [2m([22m[2m6 tests[22m[2m | [22m[31m6 failed[39m[2m)[22m[33m 3659[2mms[22m[39m
 [31m     [31m├ù[31m creates and retrieves a portfolio with slippage tolerance[39m[33m 2740[2mms[22m[39m
@@ -70,27 +70,27 @@
  [32mΓ£ô[39m src/test/apiResponse.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 20[2mms[22m[39m
  [32mΓ£ô[39m src/test/apiErrors.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
  [32mΓ£ô[39m src/test/auth.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 193[2mms[22m[39m
-{"level":30,"time":"2026-03-24T11:59:54.248Z","service":"stellar-portfolio-backend","msg":"[RATE-LIMIT] Test environment detected - using memory store"}
-{"level":40,"time":"2026-03-24T11:59:54.913Z","service":"stellar-portfolio-backend","limitType":"write-operations","ip":"::ffff:127.0.0.1","endpoint":"POST /test","totalThrottled":1,"throttledByType":1,"msg":"[RATE-LIMIT-MONITOR] Request throttled"}
-{"level":40,"time":"2026-03-24T11:59:54.919Z","service":"stellar-portfolio-backend","limitType":"write-operations","ip":"::ffff:127.0.0.1","endpoint":"POST /test","retryAfter":60,"msg":"[RATE-LIMIT] Request throttled"}
+{"level":30,"time":"2026-03-24T11:59:54.248Z","service":"orbit-rebalancer-backend","msg":"[RATE-LIMIT] Test environment detected - using memory store"}
+{"level":40,"time":"2026-03-24T11:59:54.913Z","service":"orbit-rebalancer-backend","limitType":"write-operations","ip":"::ffff:127.0.0.1","endpoint":"POST /test","totalThrottled":1,"throttledByType":1,"msg":"[RATE-LIMIT-MONITOR] Request throttled"}
+{"level":40,"time":"2026-03-24T11:59:54.919Z","service":"orbit-rebalancer-backend","limitType":"write-operations","ip":"::ffff:127.0.0.1","endpoint":"POST /test","retryAfter":60,"msg":"[RATE-LIMIT] Request throttled"}
  [32mΓ£ô[39m src/test/rateLimit.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1898[2mms[22m[39m
      [33m[2mΓ£ô[22m[39m returns standardized RATE_LIMITED response with retry metadata [33m 1865[2mms[22m[39m
-{"level":30,"time":"2026-03-24T11:59:54.995Z","service":"stellar-portfolio-backend","jobId":"test-job-1","triggeredBy":"manual","msg":"[WORKER:portfolio-check] Starting portfolio check cycle"}
-{"level":30,"time":"2026-03-24T11:59:55.006Z","service":"stellar-portfolio-backend","msg":"[WORKER:portfolio-check] Skipping demo portfolio"}
-{"level":30,"time":"2026-03-24T11:59:55.006Z","service":"stellar-portfolio-backend","checked":1,"queued":0,"skipped":1,"msg":"[WORKER:portfolio-check] Cycle complete"}
-{"level":30,"time":"2026-03-24T11:59:55.008Z","service":"stellar-portfolio-backend","jobId":"test-job-1","triggeredBy":"scheduler","msg":"[WORKER:portfolio-check] Starting portfolio check cycle"}
-{"level":30,"time":"2026-03-24T11:59:55.009Z","service":"stellar-portfolio-backend","portfolioId":"test-portfolio-1","jobId":"rebalance-test-portfolio-1-1774353595009","msg":"[WORKER:portfolio-check] Enqueued rebalance job"}
-{"level":30,"time":"2026-03-24T11:59:55.011Z","service":"stellar-portfolio-backend","event":"audit","action":"auto_rebalance_enqueued","portfolioId":"test-portfolio-1","jobId":"rebalance-test-portfolio-1-1774353595009","msg":"audit"}
-{"level":30,"time":"2026-03-24T11:59:55.011Z","service":"stellar-portfolio-backend","checked":1,"queued":1,"skipped":0,"msg":"[WORKER:portfolio-check] Cycle complete"}
-{"level":30,"time":"2026-03-24T11:59:55.032Z","service":"stellar-portfolio-backend","jobId":"test-job-1","triggeredBy":"scheduler","msg":"[WORKER:portfolio-check] Starting portfolio check cycle"}
-{"level":40,"time":"2026-03-24T11:59:55.034Z","service":"stellar-portfolio-backend","reason":"High volatility","msg":"[WORKER:portfolio-check] Market conditions unsafe, skipping cycle"}
-{"level":30,"time":"2026-03-24T11:59:55.054Z","service":"stellar-portfolio-backend","jobId":"test-job-1","portfolioId":"test-portfolio-1","triggeredBy":"auto","msg":"[WORKER:rebalance] Executing rebalance"}
-{"level":30,"time":"2026-03-24T11:59:55.055Z","service":"stellar-portfolio-backend","event":"audit","action":"auto_rebalance_started","portfolioId":"test-portfolio-1","jobId":"test-job-1","msg":"audit"}
-{"level":40,"time":"2026-03-24T11:59:55.056Z","service":"stellar-portfolio-backend","msg":"[LOCK_SERVICE] Redis not available, using in-memory fallback locking (single-node only)"}
-{"level":30,"time":"2026-03-24T11:59:55.056Z","service":"stellar-portfolio-backend","portfolioId":"test-portfolio-1","trades":2,"msg":"[WORKER:rebalance] Rebalance completed"}
-{"level":30,"time":"2026-03-24T11:59:55.056Z","service":"stellar-portfolio-backend","event":"audit","action":"auto_rebalance_completed","portfolioId":"test-portfolio-1","jobId":"test-job-1","trades":2,"status":"completed","msg":"audit"}
-{"level":30,"time":"2026-03-24T11:59:55.059Z","service":"stellar-portfolio-backend","jobId":"test-job-1","triggeredBy":"scheduler","msg":"[WORKER:analytics-snapshot] Capturing portfolio snapshots"}
-{"level":30,"time":"2026-03-24T11:59:55.059Z","service":"stellar-portfolio-backend","jobId":"test-job-1","msg":"[WORKER:analytics-snapshot] Snapshot cycle complete"}
+{"level":30,"time":"2026-03-24T11:59:54.995Z","service":"orbit-rebalancer-backend","jobId":"test-job-1","triggeredBy":"manual","msg":"[WORKER:portfolio-check] Starting portfolio check cycle"}
+{"level":30,"time":"2026-03-24T11:59:55.006Z","service":"orbit-rebalancer-backend","msg":"[WORKER:portfolio-check] Skipping demo portfolio"}
+{"level":30,"time":"2026-03-24T11:59:55.006Z","service":"orbit-rebalancer-backend","checked":1,"queued":0,"skipped":1,"msg":"[WORKER:portfolio-check] Cycle complete"}
+{"level":30,"time":"2026-03-24T11:59:55.008Z","service":"orbit-rebalancer-backend","jobId":"test-job-1","triggeredBy":"scheduler","msg":"[WORKER:portfolio-check] Starting portfolio check cycle"}
+{"level":30,"time":"2026-03-24T11:59:55.009Z","service":"orbit-rebalancer-backend","portfolioId":"test-portfolio-1","jobId":"rebalance-test-portfolio-1-1774353595009","msg":"[WORKER:portfolio-check] Enqueued rebalance job"}
+{"level":30,"time":"2026-03-24T11:59:55.011Z","service":"orbit-rebalancer-backend","event":"audit","action":"auto_rebalance_enqueued","portfolioId":"test-portfolio-1","jobId":"rebalance-test-portfolio-1-1774353595009","msg":"audit"}
+{"level":30,"time":"2026-03-24T11:59:55.011Z","service":"orbit-rebalancer-backend","checked":1,"queued":1,"skipped":0,"msg":"[WORKER:portfolio-check] Cycle complete"}
+{"level":30,"time":"2026-03-24T11:59:55.032Z","service":"orbit-rebalancer-backend","jobId":"test-job-1","triggeredBy":"scheduler","msg":"[WORKER:portfolio-check] Starting portfolio check cycle"}
+{"level":40,"time":"2026-03-24T11:59:55.034Z","service":"orbit-rebalancer-backend","reason":"High volatility","msg":"[WORKER:portfolio-check] Market conditions unsafe, skipping cycle"}
+{"level":30,"time":"2026-03-24T11:59:55.054Z","service":"orbit-rebalancer-backend","jobId":"test-job-1","portfolioId":"test-portfolio-1","triggeredBy":"auto","msg":"[WORKER:rebalance] Executing rebalance"}
+{"level":30,"time":"2026-03-24T11:59:55.055Z","service":"orbit-rebalancer-backend","event":"audit","action":"auto_rebalance_started","portfolioId":"test-portfolio-1","jobId":"test-job-1","msg":"audit"}
+{"level":40,"time":"2026-03-24T11:59:55.056Z","service":"orbit-rebalancer-backend","msg":"[LOCK_SERVICE] Redis not available, using in-memory fallback locking (single-node only)"}
+{"level":30,"time":"2026-03-24T11:59:55.056Z","service":"orbit-rebalancer-backend","portfolioId":"test-portfolio-1","trades":2,"msg":"[WORKER:rebalance] Rebalance completed"}
+{"level":30,"time":"2026-03-24T11:59:55.056Z","service":"orbit-rebalancer-backend","event":"audit","action":"auto_rebalance_completed","portfolioId":"test-portfolio-1","jobId":"test-job-1","trades":2,"status":"completed","msg":"audit"}
+{"level":30,"time":"2026-03-24T11:59:55.059Z","service":"orbit-rebalancer-backend","jobId":"test-job-1","triggeredBy":"scheduler","msg":"[WORKER:analytics-snapshot] Capturing portfolio snapshots"}
+{"level":30,"time":"2026-03-24T11:59:55.059Z","service":"orbit-rebalancer-backend","jobId":"test-job-1","msg":"[WORKER:analytics-snapshot] Snapshot cycle complete"}
  [32mΓ£ô[39m src/test/queue.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 109[2mms[22m[39m
 node.exe : 
 At line:1 char:1

@@ -424,7 +424,7 @@ Every log entry automatically includes the following standard fields:
 
 - `level`: The severity of the log (e.g., `info`, `warn`, `error`).
 - `time`: ISO 8601 formatted timestamp of when the event occurred.
-- `service`: Identifies the source component (always `stellar-portfolio-backend`).
+- `service`: Identifies the source component (always `orbit-rebalancer-backend`).
 - `environment`: The deployment environment (`development`, `production`, etc.).
 - `msg`: The human-readable log message.
 

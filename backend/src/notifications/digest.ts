@@ -133,7 +133,7 @@ async function sendUserDigest(
 
   await notificationService.sendRawEmail({
     to: emailAddress,
-    subject: `[Stellar Portfolio] ${capitalize(frequency)} Portfolio Summary`,
+    subject: `[Orbit Rebalancer] ${capitalize(frequency)} Portfolio Summary`,
     html,
     text,
   })

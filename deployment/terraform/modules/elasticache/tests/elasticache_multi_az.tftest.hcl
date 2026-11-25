@@ -67,7 +67,7 @@ run "replicas_spread_across_all_configured_azs" {
   command = plan
 
   variables {
-    name_prefix        = "stellar-portfolio-production"
+    name_prefix        = "orbit-rebalancer-production"
     vpc_id             = "vpc-0123456789abcdef0"
     subnet_ids         = ["subnet-aaa", "subnet-bbb", "subnet-ccc"]
     node_type          = "cache.t4g.small"
@@ -95,7 +95,7 @@ run "more_replicas_than_azs_cycles_the_az_pool" {
   command = plan
 
   variables {
-    name_prefix        = "stellar-portfolio-production"
+    name_prefix        = "orbit-rebalancer-production"
     vpc_id             = "vpc-0123456789abcdef0"
     subnet_ids         = ["subnet-aaa", "subnet-bbb"]
     node_type          = "cache.t4g.small"

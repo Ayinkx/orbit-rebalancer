@@ -2,7 +2,7 @@
 """
 Orbit Rebalancer - Python API Client.
 
-A comprehensive Python client for interacting with the Stellar Portfolio
+A comprehensive Python client for interacting with the Orbit Rebalancer
 Rebalancer API. Covers portfolio management, prices, rebalancing, history,
 auto-rebalancer status, notifications, and system health.
 

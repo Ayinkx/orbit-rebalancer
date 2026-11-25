@@ -327,7 +327,7 @@ export async function runScheduledExport(
 
         await notificationService.sendEmailWithAttachment({
             to: schedule.emailAddress,
-            subject: `[Stellar Portfolio] Your ${schedule.frequency} portfolio export`,
+            subject: `[Orbit Rebalancer] Your ${schedule.frequency} portfolio export`,
             text: buildScheduledExportText(schedule, result.filename),
             html: buildScheduledExportHtml(schedule, result.filename),
             attachments: [

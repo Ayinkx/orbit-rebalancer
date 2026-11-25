@@ -8,7 +8,7 @@ const isProduction = process.env.NODE_ENV === 'production'
 const baseLogger = pino({
     level: process.env.LOG_LEVEL || (isProduction ? 'info' : 'debug'),
     base: {
-        service: 'stellar-portfolio-backend',
+        service: 'orbit-rebalancer-backend',
         environment: process.env.NODE_ENV || 'development',
     },
     timestamp: pino.stdTimeFunctions.isoTime,
