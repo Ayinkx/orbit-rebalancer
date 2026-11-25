@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/license-MIT-brightgreen" alt="Licença" />
 </p>
 
-[![GitHub Repo](https://img.shields.io/badge/repo-Stellar%20Portfolio%20Rebalancer-blue?style=flat-square)](https://github.com/Ayinkx/orbit-rebalancer)
+[![GitHub Repo](https://img.shields.io/badge/repo-Orbit%20Rebalancer-blue?style=flat-square)](https://github.com/Ayinkx/orbit-rebalancer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > **Nota:** Tradução sincronizada com a versão mais recente do [README principal](../README.md) (Última atualização: Agosto de 2026).
