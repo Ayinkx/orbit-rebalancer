@@ -1,0 +1,28 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+
+export interface RequestContext {
+    requestId?: string
+    correlationId?: string
+    traceId?: string
+    spanId?: string
+}
+
+const requestContextStorage = new AsyncLocalStorage<RequestContext>()
+
+export const runWithRequestContext = <T>(context: RequestContext, fn: () => T): T =>
+    requestContextStorage.run(context, fn)
+
+export const getRequestContext = (): RequestContext | undefined =>
+    requestContextStorage.getStore()
+
+export const getRequestId = (): string | undefined =>
+    requestContextStorage.getStore()?.requestId
+
+export const getCorrelationId = (): string | undefined =>
+    requestContextStorage.getStore()?.correlationId
+
+export const getTraceId = (): string | undefined =>
+    requestContextStorage.getStore()?.traceId
+
+export const getSpanId = (): string | undefined =>
+    requestContextStorage.getStore()?.spanId

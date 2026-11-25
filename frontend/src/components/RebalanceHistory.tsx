@@ -1,0 +1,645 @@
+import React from 'react'
+import { Clock, ArrowRight, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Calendar, Link } from 'lucide-react'
+
+import { useRebalanceHistory } from '../hooks/queries/useHistoryQuery'
+import { downloadCSV, toCSV } from '../utils/export'
+import { rebalanceHistoryCopy } from '../content/uiCopy'
+import { formatShortDate, formatTime, formatNumber } from '../utils/localeFormat'
+
+interface RebalanceEvent {
+    id: string
+    timestamp: string
+    dateFormatted?: string
+    timeFormatted?: string
+    trigger: string
+    trades: number
+    gasUsed: string
+    status: 'completed' | 'failed' | 'pending'
+    portfolioId: string
+    eventSource?: 'offchain' | 'simulated' | 'onchain'
+    onChainConfirmed?: boolean
+    isSimulated?: boolean
+    details?: {
+        fromAsset?: string
+        toAsset?: string
+        amount?: number
+        reason?: string
+        volatilityDetected?: boolean
+        riskLevel?: 'low' | 'medium' | 'high'
+        priceDirection?: 'up' | 'down'
+        performanceImpact?: 'positive' | 'negative' | 'neutral'
+        executionTime?: number
+        chain?: string
+        estimatedSlippageBps?: number
+        actualSlippageBps?: number
+        slippageExceededTolerance?: boolean
+        totalSlippageBps?: number
+        gasFeeXlm?: number
+        gasFeeUsd?: number
+        gasPerTradeXlm?: number
+        gasWarning?: boolean
+        gasBreakdown?: Array<{ tradeId: string, fromAsset?: string, toAsset?: string, feeXlm: number }>
+    }
+}
+
+interface RebalanceHistoryProps {
+    portfolioId?: string
+    isLoading?: boolean
+}
+
+const RebalanceHistory: React.FC<RebalanceHistoryProps> = ({ portfolioId, isLoading: forcedLoading = false }) => {
+    const [page, setPage] = React.useState(1)
+    const limit = 10
+    const [search] = React.useState('')
+    const [statusFilter] = React.useState('')
+    const [triggerFilter] = React.useState('')
+    const [dateFilter] = React.useState('')
+    const [errorDismissed, setErrorDismissed] = React.useState(false)
+    const retryInFlight = React.useRef(false)
+    const [announcement, setAnnouncement] = React.useState('')
+
+    // Query for rebalance history
+    const {
+        data,
+        isLoading,
+        error: queryError,
+        refetch,
+        isFetching,
+    } = useRebalanceHistory(portfolioId, page, limit, search, statusFilter, triggerFilter, dateFilter)
+
+    React.useEffect(() => {
+        setErrorDismissed(false)
+    }, [queryError, page, portfolioId])
+
+    // Demo history generator
+    const getDemoHistory = (): RebalanceEvent[] => {
+        const now = new Date()
+        const formatDateTime = (timestamp: string): { dateFormatted: string, timeFormatted: string } => {
+            const date = new Date(timestamp)
+            return {
+                dateFormatted: date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+                timeFormatted: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+            }
+        }
+
+        return [
+            {
+                id: '1',
+                timestamp: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+                ...formatDateTime(new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString()),
+                trigger: 'Threshold exceeded (8.2%)',
+                trades: 3,
+                gasUsed: '0.0234 XLM',
+                status: 'completed',
+                portfolioId: portfolioId || 'demo',
+                eventSource: 'simulated',
+                onChainConfirmed: false,
+                isSimulated: true,
+                details: {
+                    fromAsset: 'XLM',
+                    toAsset: 'ETH',
+                    amount: 1200,
+                    reason: 'Portfolio allocation drift exceeded rebalancing threshold',
+                    riskLevel: 'medium',
+                    priceDirection: 'down',
+                    performanceImpact: 'neutral',
+                    executionTime: 2400,
+                    chain: 'Stellar'
+                    ,
+                    gasFeeXlm: 0.0234,
+                    gasFeeUsd: 0.0028,
+                    gasPerTradeXlm: 0.0078,
+                    gasWarning: false,
+                    gasBreakdown: [
+                        { tradeId: 'trade-1', fromAsset: 'XLM', toAsset: 'ETH', feeXlm: 0.0078 },
+                        { tradeId: 'trade-2', fromAsset: 'USDC', toAsset: 'XLM', feeXlm: 0.0078 },
+                        { tradeId: 'trade-3', fromAsset: 'BTC', toAsset: 'USDC', feeXlm: 0.0078 }
+                    ]
+                }
+            },
+            {
+                id: '2',
+                timestamp: new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString(),
+                ...formatDateTime(new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString()),
+                trigger: 'Scheduled rebalance',
+                trades: 2,
+                gasUsed: '0.0156 XLM',
+                status: 'completed',
+                portfolioId: portfolioId || 'demo',
+                eventSource: 'simulated',
+                onChainConfirmed: false,
+                isSimulated: true,
+                details: {
+                    reason: 'Automated scheduled rebalancing executed',
+                    riskLevel: 'low',
+                    priceDirection: 'up',
+                    performanceImpact: 'positive',
+                    executionTime: 1800,
+                    chain: 'Stellar'
+                    ,
+                    gasFeeXlm: 0.0156,
+                    gasFeeUsd: 0.0019,
+                    gasPerTradeXlm: 0.0078,
+                    gasWarning: false,
+                    gasBreakdown: [
+                        { tradeId: 'trade-1', fromAsset: 'XLM', toAsset: 'USDC', feeXlm: 0.0078 },
+                        { tradeId: 'trade-2', fromAsset: 'ETH', toAsset: 'XLM', feeXlm: 0.0078 }
+                    ]
+                }
+            }
+        ]
+    }
+
+    // Determine finalized data
+    let filtered = data?.history || (portfolioId === 'demo' || !portfolioId ? getDemoHistory() : []); if(search) filtered = filtered.filter((e:any) => e.trigger.toLowerCase().includes(search.toLowerCase()) || e.details?.reason?.toLowerCase().includes(search.toLowerCase())); if(statusFilter) filtered = filtered.filter((e:any) => e.status === statusFilter); if(triggerFilter) filtered = filtered.filter((e:any) => e.trigger.includes(triggerFilter)); if(dateFilter) filtered = filtered.filter((e:any) => e.timestamp.startsWith(dateFilter)); const history: RebalanceEvent[] = filtered
+    const totalCount = data?.total || (portfolioId === 'demo' || !portfolioId ? 2 : 0)
+    const totalPages = Math.ceil(totalCount / limit)
+
+    // At 320px every page button is a horizontal overflow risk. Render only a
+    // small window around the current page, keeping the first and last pages
+    // reachable and marking skipped ranges with an ellipsis.
+    const visiblePages = React.useMemo(() => {
+        if (totalPages <= 5) return Array.from({ length: totalPages }, (_, i) => i + 1)
+        const pages = new Set<number>([1, totalPages, page - 1, page, page + 1])
+        return [...pages].filter(p => p >= 1 && p <= totalPages).sort((a, b) => a - b)
+    }, [page, totalPages])
+    const error = queryError ? rebalanceHistoryCopy.loadError : null
+    const loading = forcedLoading || (isLoading && !data)
+
+    const handlePageChange = (nextPage: number) => {
+        setPage(nextPage)
+        setAnnouncement(rebalanceHistoryCopy.pageChangedAnnounce(nextPage, totalPages))
+    }
+
+    const handleRetry = () => {
+        if (retryInFlight.current || isFetching) return
+        retryInFlight.current = true
+        setErrorDismissed(false)
+        setAnnouncement(rebalanceHistoryCopy.retryAnnounce)
+        void Promise.resolve(refetch?.())
+            .catch(() => undefined)
+            .finally(() => {
+                retryInFlight.current = false
+            })
+    }
+
+    const handleDismissError = () => {
+        setErrorDismissed(true)
+        setAnnouncement(rebalanceHistoryCopy.dismissedAnnounce)
+    }
+
+    const formatDateTime = (timestamp: string): { dateFormatted: string, timeFormatted: string } => ({
+        dateFormatted: formatShortDate(timestamp),
+        timeFormatted: formatTime(timestamp),
+    })
+
+    const formatTimestamp = (timestamp: string) => {
+        const date = new Date(timestamp)
+        const now = new Date()
+        const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+
+        if (diffInHours < 1) {
+            const minutes = Math.floor(diffInHours * 60)
+            return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`
+        } else if (diffInHours < 24) {
+            const hours = Math.floor(diffInHours)
+            return `${hours} hour${hours > 1 ? 's' : ''} ago`
+        } else {
+            const days = Math.floor(diffInHours / 24)
+            return `${days} day${days > 1 ? 's' : ''} ago`
+        }
+    }
+
+    const formatExecutionTime = (ms?: number) => {
+        if (!ms) return null
+        return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
+    }
+
+    const getStatusIcon = (status: string) => {
+        switch (status) {
+            case 'completed':
+                return <CheckCircle className="w-5 h-5 text-green-600" aria-hidden="true" />
+            case 'failed':
+                return <AlertTriangle className="w-5 h-5 text-red-600" aria-hidden="true" />
+            case 'pending':
+                return <Clock className="w-5 h-5 text-yellow-600 motion-safe:animate-pulse" aria-hidden="true" />
+            default:
+                return <CheckCircle className="w-5 h-5 text-green-600" aria-hidden="true" />
+        }
+    }
+
+    const getRiskLevelColor = (level?: string) => {
+        switch (level) {
+            case 'high':
+                return 'bg-red-100 text-red-800'
+            case 'medium':
+                return 'bg-yellow-100 text-yellow-800'
+            case 'low':
+                return 'bg-green-100 text-green-800'
+            default:
+                return 'bg-gray-100 text-gray-800'
+        }
+    }
+
+    const getStatusBgColor = (status: string) => {
+        switch (status) {
+            case 'completed':
+                return 'bg-green-100'
+            case 'failed':
+                return 'bg-red-100'
+            case 'pending':
+                return 'bg-yellow-100'
+            default:
+                return 'bg-green-100'
+        }
+    }
+
+    const getSourceBadge = (event: RebalanceEvent) => {
+        if (event.onChainConfirmed || event.eventSource === 'onchain') {
+            return (
+                <span className="text-xs bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 px-2 py-1 rounded flex items-center">
+                    <Link className="w-3 h-3 mr-1" />
+                    {rebalanceHistoryCopy.onChain}
+                </span>
+            )
+        }
+        if (event.isSimulated || event.eventSource === 'simulated') {
+            return (
+                <span className="text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 px-2 py-1 rounded">
+                    {rebalanceHistoryCopy.simulated}
+                </span>
+            )
+        }
+        return (
+            <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-2 py-1 rounded">
+                {rebalanceHistoryCopy.offChain}
+            </span>
+        )
+    }
+
+    //  NEW: Export History as CSV with required columns: date, asset, before_pct, after_pct, amount_traded, fee, slippage
+    const exportHistoryCSV = () => {
+        const rows = (history || []).map((event) => {
+            const date = new Date(event.timestamp)
+            const dateStr = date.toISOString().split('T')[0] // YYYY-MM-DD format
+            
+            return {
+                date: dateStr,
+                asset: event.details?.fromAsset || event.details?.toAsset || '',
+                before_pct: '', // Not available in current data structure
+                after_pct: '', // Not available in current data structure
+                amount_traded: event.details?.amount || '',
+                fee: event.gasUsed || event.details?.gasFeeXlm || '',
+                slippage: event.details?.totalSlippageBps != null 
+                    ? (event.details.totalSlippageBps / 100).toFixed(4) + '%' 
+                    : ''
+            }
+        })
+
+        const csv = toCSV(rows, [
+            'date',
+            'asset',
+            'before_pct',
+            'after_pct',
+            'amount_traded',
+            'fee',
+            'slippage'
+        ])
+
+        const today = new Date().toISOString().split('T')[0]
+        const filename = `rebalance_history_${today}.csv`
+        downloadCSV(filename, csv)
+    }
+
+    if (loading) {
+        return (
+            <div
+                data-testid="rebalance-history-skeleton"
+                role="status"
+                aria-busy="true"
+                aria-label={rebalanceHistoryCopy.loading}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6"
+            >
+                <div className="animate-pulse">
+
+                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
+                    <div className="space-y-3">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="h-16 bg-gray-100 dark:bg-gray-700 rounded"></div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <section data-testid="rebalance-history" className="bg-white dark:bg-gray-800 rounded-xl shadow-sm min-w-0 max-w-full" aria-labelledby="rebalance-history-heading">
+            <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+                {announcement}
+            </div>
+            <header className="p-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                        <h2 id="rebalance-history-heading" className="text-lg font-semibold text-gray-900 dark:text-white break-words">{rebalanceHistoryCopy.title}</h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 break-words">{rebalanceHistoryCopy.subtitle}</p>
+                    </div>
+
+                    <div data-testid="rebalance-history-controls" className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
+                        <button
+                            type="button"
+                            onClick={exportHistoryCSV}
+                            disabled={history.length === 0}
+                            className="border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-lg text-sm transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                        >
+                            {rebalanceHistoryCopy.exportCsv}
+                        </button>
+
+                        {error && !errorDismissed && (
+                            <div
+                                role="alert"
+                                aria-live="assertive"
+                                aria-atomic="true"
+                                className="flex flex-wrap items-center gap-2 text-sm text-red-600 bg-red-50 dark:bg-red-900/30 px-3 py-1.5 rounded min-w-0 max-w-full"
+                            >
+                                <span className="break-words min-w-0">{error}</span>
+                                <button
+                                    type="button"
+                                    onClick={handleRetry}
+                                    disabled={Boolean(isFetching)}
+                                    aria-busy={Boolean(isFetching)}
+                                    aria-label={rebalanceHistoryCopy.retryHistory}
+                                    className="font-medium underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded px-1 disabled:opacity-50"
+                                >
+                                    {isFetching ? rebalanceHistoryCopy.retrying : rebalanceHistoryCopy.retry}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleDismissError}
+                                    aria-label={rebalanceHistoryCopy.dismissError}
+                                    className="font-medium underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 rounded px-1"
+                                >
+                                    {rebalanceHistoryCopy.dismiss}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {history.length === 0 ? (
+                    <div className="p-6 text-center text-gray-500 dark:text-gray-400" role="status">
+                        <Clock className="w-12 h-12 mx-auto mb-4 text-gray-300 dark:text-gray-600" aria-hidden="true" />
+                        <p>{rebalanceHistoryCopy.emptyTitle}</p>
+                        <p className="text-sm mt-1">{rebalanceHistoryCopy.emptyDetail}</p>
+                    </div>
+                ) : (
+                    <div role="list" aria-label={rebalanceHistoryCopy.listLabel}>
+                    {history.map((event, index) => {
+                        const { dateFormatted, timeFormatted } = event.dateFormatted && event.timeFormatted
+                            ? { dateFormatted: event.dateFormatted, timeFormatted: event.timeFormatted }
+                            : formatDateTime(event.timestamp)
+                        const eventLabel = rebalanceHistoryCopy.eventItemLabel(
+                            index + 1,
+                            history.length,
+                            event.trigger,
+                            event.status,
+                            event.trades,
+                            dateFormatted,
+                            timeFormatted,
+                        )
+
+                        return (
+                            <div
+                                key={event.id}
+                                role="listitem"
+                                tabIndex={0}
+                                aria-label={eventLabel}
+                                data-testid="rebalance-history-event"
+                                className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset rounded-lg min-w-0"
+                            >
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between min-w-0">
+                                    <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+                                        <div className="flex-shrink-0">
+                                            <div className={`w-10 h-10 ${getStatusBgColor(event.status)} rounded-full flex items-center justify-center`}>
+                                                {getStatusIcon(event.status)}
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2 mb-2 min-w-0">
+                                                <span className="font-medium text-gray-900 dark:text-white break-words min-w-0">{event.trigger}</span>
+                                                <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-1 rounded">
+                                                    {event.trades} trade{event.trades > 1 ? 's' : ''}
+                                                </span>
+                                                {event.details?.riskLevel && (
+                                                    <span className={`text-xs px-2 py-1 rounded flex items-center ${getRiskLevelColor(event.details.riskLevel)}`}>
+                                                        {event.details.riskLevel === 'high' ? (
+                                                            <TrendingDown className="w-3 h-3 mr-1" />
+                                                        ) : event.details.riskLevel === 'medium' ? (
+                                                            <TrendingDown className="w-3 h-3 mr-1" />
+                                                        ) : (
+                                                            <TrendingUp className="w-3 h-3 mr-1" />
+                                                        )}
+                                                        {event.details.riskLevel} risk
+                                                    </span>
+                                                )}
+                                                {event.details?.chain && (
+                                                    <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 px-2 py-1 rounded flex items-center">
+                                                        <Link className="w-3 h-3 mr-1" />
+                                                        {event.details.chain}
+                                                    </span>
+                                                )}
+                                                {getSourceBadge(event)}
+                                            </div>
+
+                                            {/* Enhanced date and time display */}
+                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400 mb-2 min-w-0">
+                                                <div className="flex flex-wrap items-center gap-x-1 min-w-0">
+                                                    <Calendar className="w-4 h-4 mr-1 shrink-0" />
+                                                    <span className="font-medium">{dateFormatted}</span>
+                                                    <span className="mx-1">at</span>
+                                                    <span>{timeFormatted}</span>
+                                                </div>
+                                                <span className="hidden sm:inline text-gray-300 dark:text-gray-600">•</span>
+                                                <div className="flex flex-wrap items-center gap-x-1 min-w-0">
+                                                    <Clock className="w-4 h-4 mr-1 shrink-0" />
+                                                    {formatTimestamp(event.timestamp)}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400 mb-2 min-w-0">
+                                                <span className="break-words">Gas: {event.gasUsed}</span>
+                                                {event.details?.gasFeeUsd != null && (
+                                                    <span>(~${event.details.gasFeeUsd.toFixed(4)})</span>
+                                                )}
+                                                {event.details?.gasPerTradeXlm != null && (
+                                                    <span>{event.details.gasPerTradeXlm.toFixed(4)} XLM/trade</span>
+                                                )}
+                                                {event.details?.executionTime && (
+                                                    <span>Execution: {formatExecutionTime(event.details.executionTime)}</span>
+                                                )}
+                                                {event.details?.amount && (
+                                                    <span>Amount: ${formatNumber(event.details.amount)}</span>
+                                                )}
+                                                {event.details?.totalSlippageBps != null && (
+                                                    <span>Slippage: {(event.details.totalSlippageBps / 100).toFixed(2)}%</span>
+                                                )}
+                                            </div>
+                                            {(event.details?.gasBreakdown?.length ?? 0) > 0 && (
+                                                <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                                                    {event.details?.gasWarning && (
+                                                        <div className="text-red-600 dark:text-red-400 mb-1 font-medium">High gas warning ({'>'} 0.5 XLM)</div>
+                                                    )}
+                                                    {event.details?.gasBreakdown?.map((item) => (
+                                                        <div key={item.tradeId} className="flex flex-wrap justify-between gap-x-2">
+                                                            <span className="min-w-0 break-words">{item.tradeId}: {item.fromAsset ?? '—'} → {item.toAsset ?? '—'}</span>
+                                                            <span className="shrink-0">{item.feeXlm.toFixed(4)} XLM</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Enhanced badges */}
+                                            <div className="flex flex-wrap items-center gap-2 mb-2 min-w-0">
+                                                {event.details?.volatilityDetected && (
+                                                    <span className="text-xs bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300 px-2 py-1 rounded flex items-center">
+                                                        <TrendingDown className="w-3 h-3 mr-1" />
+                                                        High Volatility
+                                                    </span>
+                                                )}
+                                                {event.details?.performanceImpact && (
+                                                    <span className={`text-xs px-2 py-1 rounded flex items-center ${event.details.performanceImpact === 'positive'
+                                                        ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300'
+                                                        : event.details.performanceImpact === 'negative'
+                                                            ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300'
+                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                                                        }`}>
+                                                        {event.details.performanceImpact === 'positive' ? (
+                                                            <TrendingUp className="w-3 h-3 mr-1" />
+                                                        ) : event.details.performanceImpact === 'negative' ? (
+                                                            <TrendingDown className="w-3 h-3 mr-1" />
+                                                        ) : null}
+                                                        {event.details.performanceImpact} impact
+                                                    </span>
+                                                )}
+                                                {event.details?.priceDirection && (
+                                                    <span className={`text-xs px-2 py-1 rounded flex items-center ${event.details.priceDirection === 'up'
+                                                        ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300'
+                                                        : 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300'
+                                                        }`}>
+                                                        {event.details.priceDirection === 'up' ? (
+                                                            <TrendingUp className="w-3 h-3 mr-1" />
+                                                        ) : (
+                                                            <TrendingDown className="w-3 h-3 mr-1" />
+                                                        )}
+                                                        Market {event.details.priceDirection}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {(event.details?.actualSlippageBps != null || event.details?.estimatedSlippageBps != null) && (
+                                                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2 break-words min-w-0">
+                                                    Slippage: {event.details.actualSlippageBps != null ? `${(event.details.actualSlippageBps / 100).toFixed(2)}%` : '—'} actual
+                                                    {event.details.estimatedSlippageBps != null && ` (${(event.details.estimatedSlippageBps / 100).toFixed(2)}% max)`}
+                                                    {event.details?.slippageExceededTolerance && (
+                                                        <span className="ml-1 text-red-600 dark:text-red-400 font-medium">— exceeded tolerance</span>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {event.details?.reason && (
+                                                <div className="text-sm text-gray-600 dark:text-gray-400 italic mb-2 break-words min-w-0">
+                                                    {event.details.reason}
+                                                </div>
+                                            )}
+
+                                            {event.details?.fromAsset && event.details?.toAsset && (
+                                                <div className="flex flex-wrap items-center gap-2 text-sm min-w-0">
+                                                    <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs break-words min-w-0">
+                                                        {event.details.fromAsset}
+                                                    </span>
+                                                    <ArrowRight className="w-3 h-3 text-gray-400 shrink-0" />
+                                                    <span className="px-2 py-1 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded text-xs break-words min-w-0">
+                                                        {event.details.toAsset}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <ArrowRight className="hidden sm:block w-4 h-4 text-gray-400 mt-2 shrink-0" aria-hidden="true" />
+                                </div>
+                            </div>
+                        )
+                    })}
+                    </div>
+                )}
+            </header>
+
+            {history.length > 0 && (
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400">
+                            <span>{rebalanceHistoryCopy.showing(history.length, totalCount)}</span>
+                            <div className="hidden md:flex flex-wrap items-center gap-4">
+                                <div className="flex items-center">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full mr-1" aria-hidden="true" />
+                                    <span>{rebalanceHistoryCopy.legendAutomated}</span>
+                                </div>
+                                <div className="flex items-center">
+                                    <div className="w-2 h-2 bg-orange-500 rounded-full mr-1" aria-hidden="true" />
+                                    <span>{rebalanceHistoryCopy.legendRisk}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {totalPages > 1 && (
+                            <nav aria-label={rebalanceHistoryCopy.paginationLabel} className="flex flex-wrap items-center justify-center gap-2 min-w-0">
+                                <button
+                                    type="button"
+                                    onClick={() => handlePageChange(Math.max(1, page - 1))}
+                                    disabled={page === 1}
+                                    aria-label={rebalanceHistoryCopy.previousPage}
+                                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                >
+                                    <ArrowRight className="w-4 h-4 rotate-180" aria-hidden="true" />
+                                </button>
+                                <div className="flex flex-wrap items-center justify-center gap-1 min-w-0">
+                                    {visiblePages.map((p, index) => {
+                                        const previous = visiblePages[index - 1]
+                                        return (
+                                            <React.Fragment key={p}>
+                                                {previous !== undefined && p - previous > 1 && (
+                                                    <span aria-hidden="true" className="px-1 text-gray-400">…</span>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handlePageChange(p)}
+                                                    aria-current={page === p ? 'page' : undefined}
+                                                    className={`min-w-8 h-8 px-1 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${page === p
+                                                        ? 'bg-blue-600 text-white'
+                                                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                                                        }`}
+                                                >
+                                                    {p}
+                                                </button>
+                                            </React.Fragment>
+                                        )
+                                    })}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
+                                    disabled={page === totalPages}
+                                    aria-label={rebalanceHistoryCopy.nextPage}
+                                    className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                                >
+                                    <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                                </button>
+                            </nav>
+                        )}
+                    </div>
+                </div>
+            )}
+        </section>
+    )
+}
+
+export default RebalanceHistory

@@ -1,0 +1,113 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "timezone": "UTC",
+  "schedule": [
+    "before 3am on Monday"
+  ],
+  "rangeStrategy": "bump",
+  "semanticCommits": true,
+  "commitMessagePrefix": "chore(deps): ",
+  "major": {
+    "enabled": true
+  },
+  "minor": {
+    "enabled": true
+  },
+  "patch": {
+    "enabled": true
+  },
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/target/**",
+    "**/dist/**",
+    "**/.terraform/**",
+    ".git/**",
+    ".husky/**",
+    "security/sbom/**"
+  ],
+  "enableVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "dependencies"],
+    "assignees": ["@renovatebot"]
+  },
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 3,
+  "enabledManagers": [
+    "npm",
+    "cargo",
+    "dockerfile",
+    "docker-compose",
+    "github-actions",
+    "terraform",
+    "pre-commit"
+  ],
+  "packageRules": [
+    {
+      "description": "Group patch updates into weekly batch PR",
+      "matchUpdateTypes": ["patch"],
+      "groupName": "patch dependencies",
+      "schedule": ["before 3am on Monday"],
+      "automerge": false,
+      "semanticCommits": true
+    },
+    {
+      "description": "Minor version updates - separate PRs",
+      "matchUpdateTypes": ["minor"],
+      "groupName": "minor dependencies",
+      "automerge": false,
+      "semanticCommits": true
+    },
+    {
+      "description": "Major version updates - separate PRs with strict review",
+      "matchUpdateTypes": ["major"],
+      "groupName": "major dependencies",
+      "automerge": false,
+      "labels": ["breaking-change", "dependencies"],
+      "semanticCommits": true
+    },
+    {
+      "description": "Node.js version management",
+      "matchDatasources": ["node-version"],
+      "enabled": true,
+      "automerge": false,
+      "labels": ["toolchain", "dependencies"]
+    },
+    {
+      "description": "Rust toolchain updates",
+      "matchDatasources": ["rust-version"],
+      "enabled": true,
+      "automerge": false,
+      "labels": ["toolchain", "dependencies"]
+    },
+    {
+      "description": "Terraform provider and module updates",
+      "matchManagers": ["terraform"],
+      "automerge": false,
+      "labels": ["terraform", "dependencies"],
+      "semanticCommits": true
+    },
+    {
+      "description": "Pre-commit hook updates",
+      "matchManagers": ["pre-commit"],
+      "automerge": false,
+      "labels": ["toolchain", "dependencies"],
+      "semanticCommits": true
+    },
+    {
+      "description": "Critical security updates",
+      "matchDatasources": ["npm", "crate"],
+      "matchUpdateTypes": ["patch"],
+      "matchDepTypes": ["dependencies"],
+      "groupName": "security fixes",
+      "schedule": ["at any time"],
+      "automerge": false,
+      "labels": ["security", "dependencies"]
+    }
+  ]
+}

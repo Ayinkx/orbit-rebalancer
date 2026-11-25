@@ -1,0 +1,107 @@
+name: Dependency Audit Policy
+
+# This workflow enforces high/critical severity audit gates for npm and Cargo dependencies.
+# Exceptions for accepted risk (waivers) must be documented in the baseline files:
+#   - security/npm-audit-baseline.json for npm audits
+#   - security/cargo-audit-baseline.txt for cargo audits
+# A scheduled daily run catches newly disclosed advisories independent of code changes.
+#
+# Waiver process:
+#   1. Open an issue tracking the advisory and the remediation plan.
+#   2. Add the advisory ID to the corresponding baseline file with a comment that
+#      references the issue and the reason for the accepted risk.
+#   3. The daily scheduled scan will continue to emit a notification for waived
+#      advisories until the issue is resolved, ensuring waivers remain auditable
+#      via the baseline file's comment history in git.
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'backend/package.json'
+      - 'backend/package-lock.json'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'scripts/check-npm-audit-baseline.mjs'
+      - 'security/npm-audit-baseline.json'
+      - 'contracts/Cargo.toml'
+      - 'contracts/Cargo.lock'
+      - 'security/cargo-audit-baseline.txt'
+      - 'docs/CONTRIBUTING.md'
+      - '.github/workflows/npm-audit-policy.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'backend/package.json'
+      - 'backend/package-lock.json'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'scripts/check-npm-audit-baseline.mjs'
+      - 'security/npm-audit-baseline.json'
+      - 'contracts/Cargo.toml'
+      - 'contracts/Cargo.lock'
+      - 'security/cargo-audit-baseline.txt'
+      - 'docs/CONTRIBUTING.md'
+      - '.github/workflows/npm-audit-policy.yml'
+
+jobs:
+  npm-audit-policy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Check npm dependency audit baseline
+        run: npm run audit:policy
+
+      - name: Notify Slack on Failure
+        if: failure() && github.ref == 'refs/heads/main'
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"Security Scan / npm Audit Failure on main!\nRepo: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nFailing Step: ${{ github.job }}\nLink: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}"
+
+  cargo-audit-policy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Check cargo dependency audit baseline
+        run: |
+          BASELINE_FILE="../security/cargo-audit-baseline.txt"
+          IGNORE_ARGS=()
+          if [ -f "$BASELINE_FILE" ]; then
+            while IFS= read -r line || [ -n "$line" ]; do 
+              # skip comments and empty lines
+              case "$line" in
+                \#*|'') ;;
+                *) IGNORE_ARGS+=(--ignore "$line" );;
+              esac
+            done < "$BASELINE_FILE"
+          fi
+          cargo audit --deny high "${IGNORE_ARGS[@]}"
+
+      - name: Notify Slack on Failure
+        if: failure() && github.ref == 'refs/heads/main'
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"Security Scan / Cargo Audit Failure on main!\nRepo: ${{ github.repository }}\nBranch: ${{ github.ref_name }}\nFailing Step: ${{ github.job }}\nLink: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}"

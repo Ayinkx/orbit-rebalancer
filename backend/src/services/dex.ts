@@ -1,0 +1,1485 @@
+import {
+    Horizon,
+    Asset,
+    Operation,
+    TransactionBuilder,
+    Networks,
+    Keypair,
+    Memo
+} from '@stellar/stellar-sdk'
+import { Dec } from '../utils/decimal.js'
+import { logger } from '../utils/logger.js'
+import type { ExecutionExplanation } from '../types/index.js'
+import { recordTradeSlippage, recordHorizonSubmissionRetry } from '../observability/metrics.js'
+
+export interface DEXTradeRequest {
+    tradeId: string
+    fromAsset: string
+    toAsset: string
+    amount: number
+    maxSlippageBps?: number
+    maxHops?: number
+    portfolioId?: string
+}
+
+export interface RebalanceExecutionConfig {
+    maxSlippageBpsPerTrade: number
+    maxSlippageBpsPerRebalance: number
+    maxSpreadBps: number
+    minLiquidityCoverage: number
+    allowPartialFill: boolean
+    rollbackOnFailure: boolean
+    maxHops: number
+    signerSecret?: string
+    horizonMaxRetries?: number
+    horizonBaseRetryDelayMs?: number
+    horizonMaxRetryDelayMs?: number
+}
+
+export interface DEXTradeExecutionResult {
+    tradeId: string
+    fromAsset: string
+    toAsset: string
+    requestedAmount: number
+    executedAmount: number
+    estimatedReceivedAmount: number
+    remainingAmount: number
+    referencePrice: number
+    priceLimit: number
+    spreadBps: number
+    slippageBps: number
+    liquidityCoverage: number
+    status: 'executed' | 'partial' | 'failed' | 'skipped'
+    txHash?: string
+    rollbackTxHash?: string
+    rolledBack?: boolean
+    failureReason?: string
+    path?: string[]
+}
+
+export interface DEXRollbackResult {
+    attempted: boolean
+    success: boolean
+    rolledBackTrades: number
+    failures: string[]
+}
+
+export interface DEXRebalanceExecutionResult {
+    status: 'success' | 'partial' | 'failed'
+    executedTrades: DEXTradeExecutionResult[]
+    partialFills: DEXTradeExecutionResult[]
+    failedTrades: DEXTradeExecutionResult[]
+    totalEstimatedFeeXLM: number
+    totalSlippageBps: number
+    rollback: DEXRollbackResult
+    failureReason?: string
+    explanation: ExecutionExplanation
+}
+
+export interface DEXTradeAssessmentResult {
+    tradeId: string
+    fromAsset: string
+    toAsset: string
+    requestedAmount: number
+    estimatedReceivedAmount: number
+    referencePrice: number
+    priceLimit: number
+    spreadBps: number
+    slippageBps: number
+    liquidityCoverage: number
+    status: 'executable' | 'skipped'
+    skipReason?: string
+    path?: string[]
+}
+
+export interface DEXRebalanceAssessmentResult {
+    status: 'success' | 'partial' | 'failed'
+    assessedTrades: DEXTradeAssessmentResult[]
+    executableTrades: DEXTradeAssessmentResult[]
+    skippedTrades: DEXTradeAssessmentResult[]
+    totalEstimatedFeeXLM: number
+    totalSlippageBps: number
+}
+
+interface MarketAssessment {
+    referencePrice: number
+    spreadBps: number
+    liquidityCoverage: number
+}
+
+interface RawOfferAsset {
+    asset_type: string
+    asset_code?: string
+    asset_issuer?: string
+}
+
+interface RawOfferRecord {
+    id: string | number
+    amount: string
+    price: string
+    selling: RawOfferAsset
+    buying: RawOfferAsset
+}
+
+interface RawPathAsset {
+    asset_type: string
+    asset_code?: string
+    asset_issuer?: string
+}
+
+interface RawPathRecord {
+    source_asset_type: string
+    source_amount: string
+    destination_asset_type: string
+    destination_asset_code?: string
+    destination_asset_issuer?: string
+    destination_amount: string
+    path?: RawPathAsset[]
+}
+
+interface DiscoveredPath {
+    sourceAsset: string
+    destinationAsset: string
+    intermediateAssets: string[]
+    pathLength: number
+    sendAmount: number
+    estimatedDestinationAmount: number
+    referencePrice: number
+    rawPath: RawPathAsset[]
+}
+
+export type DexConnectivityReason =
+    | 'ok'
+    | 'no_path'
+    | 'timeout'
+    | 'http_error'
+    | 'api_unavailable'
+    | 'unsupported_asset'
+    | 'error'
+
+export interface DexConnectivityProbeOptions {
+    /** Asset sold by the probe. Defaults to `XLM`. */
+    fromAsset?: string
+    /** Asset bought by the probe. Defaults to `USDC`. */
+    toAsset?: string
+    /** Amount of `fromAsset` to price. Defaults to 1. */
+    sendAmount?: number
+    /** Upper bound on how long Horizon may take. Defaults to 5000ms. */
+    timeoutMs?: number
+}
+
+export interface DexConnectivityResult {
+    /** True when Horizon answered the path-finding query, regardless of whether a route exists. */
+    reachable: boolean
+    reason: DexConnectivityReason
+    fromAsset: string
+    toAsset: string
+    latencyMs: number
+    /** Number of candidate routes Horizon returned for the probed pair. */
+    pathCount: number
+    bestDestinationAmount?: number
+    httpStatus?: number
+    error?: string
+}
+
+/** Raised internally when the DEX probe outlives its budget. */
+export class DexProbeTimeoutError extends Error {
+    constructor(timeoutMs: number) {
+        super(`Stellar DEX reachability probe timed out after ${timeoutMs}ms`)
+        this.name = 'DexProbeTimeoutError'
+    }
+}
+
+export class StellarDEXService {
+    private server: Horizon.Server
+    private networkPassphrase: string
+    private assetIssuers: Record<string, string>
+
+    constructor() {
+        const network = (process.env.STELLAR_NETWORK || 'testnet').toLowerCase()
+        const horizonUrl = process.env.STELLAR_HORIZON_URL
+            || (network === 'mainnet'
+                ? 'https://horizon.stellar.org'
+                : 'https://horizon-testnet.stellar.org')
+
+        this.server = new Horizon.Server(horizonUrl)
+        this.networkPassphrase = network === 'mainnet' ? Networks.PUBLIC : Networks.TESTNET
+        this.assetIssuers = this.loadAssetIssuers()
+    }
+
+    getDefaultExecutionConfig(): RebalanceExecutionConfig {
+        return {
+            maxSlippageBpsPerTrade: this.readNumberEnv('REBALANCE_MAX_TRADE_SLIPPAGE_BPS', 100, 1, 5000),
+            maxSlippageBpsPerRebalance: this.readNumberEnv('REBALANCE_MAX_TOTAL_SLIPPAGE_BPS', 250, 1, 10000),
+            maxSpreadBps: this.readNumberEnv('REBALANCE_MAX_SPREAD_BPS', 120, 1, 10000),
+            minLiquidityCoverage: this.readNumberEnv('REBALANCE_MIN_LIQUIDITY_COVERAGE', 1, 0.1, 100),
+            allowPartialFill: this.readBooleanEnv('REBALANCE_ALLOW_PARTIAL_FILL', true),
+            rollbackOnFailure: this.readBooleanEnv('REBALANCE_ROLLBACK_ON_FAILURE', true),
+            maxHops: this.readNumberEnv('REBALANCE_MAX_HOPS', 3, 1, 6),
+            horizonMaxRetries: this.readNumberEnv('HORIZON_MAX_RETRIES', 5, 0, 10),
+            horizonBaseRetryDelayMs: this.readNumberEnv('HORIZON_BASE_RETRY_DELAY_MS', 1000, 100, 10000),
+            horizonMaxRetryDelayMs: this.readNumberEnv('HORIZON_MAX_RETRY_DELAY_MS', 30000, 1000, 120000)
+        }
+    }
+
+    async estimateNetworkFeeXlm(tradeCount: number): Promise<{ totalFeeXlm: number, feePerTradeXlm: number, baseFeeStroops: number }> {
+        const safeTradeCount = Math.max(0, Math.floor(tradeCount))
+        const baseFeeStroops = await this.server.fetchBaseFee()
+        const feePerTradeXlm = Dec.addStroopFee(0, baseFeeStroops)
+        const totalFeeXlm = Dec.roundStellar(feePerTradeXlm * safeTradeCount)
+
+        return {
+            totalFeeXlm,
+            feePerTradeXlm,
+            baseFeeStroops
+        }
+    }
+
+    /**
+     * Read-only reachability probe for the Stellar DEX the rebalancer trades on.
+     *
+     * The probe asks Horizon for strict-send routes between two configured assets
+     * (`/paths/strict-send`), which needs no account, no signature, and no funds —
+     * so it is safe to call from a public status page. It reports a
+     * machine-readable `reason` so callers can tell a healthy DEX (`ok`) from a
+     * reachable DEX that currently has no route for the probed pair (`no_path`),
+     * a slow DEX (`timeout`), an erroring DEX (`http_error`), or a probe that
+     * could not even build the query (`unsupported_asset` / `api_unavailable`).
+     *
+     * `reachable` is true whenever Horizon answered, even with zero routes: the
+     * DEX connection works, there is simply nothing to trade on that pair.
+     */
+    async probeDexConnectivity(options: DexConnectivityProbeOptions = {}): Promise<DexConnectivityResult> {
+        const fromCode = (options.fromAsset ?? 'XLM').toUpperCase()
+        const toCode = (options.toAsset ?? 'USDC').toUpperCase()
+        const sendAmount = typeof options.sendAmount === 'number' && options.sendAmount > 0 ? options.sendAmount : 1
+        const timeoutMs = typeof options.timeoutMs === 'number' && options.timeoutMs > 0 ? options.timeoutMs : 5000
+        const startedAt = Date.now()
+
+        let fromAsset: Asset
+        let toAsset: Asset
+        try {
+            fromAsset = this.getAssetObject(fromCode)
+            toAsset = this.getAssetObject(toCode)
+        } catch (error) {
+            return {
+                reachable: false,
+                reason: 'unsupported_asset',
+                fromAsset: fromCode,
+                toAsset: toCode,
+                latencyMs: Date.now() - startedAt,
+                pathCount: 0,
+                error: this.getErrorMessage(error)
+            }
+        }
+
+        // Key the result by the fully qualified asset (native XLM or CODE:issuer) so
+        // callers never have to guess which issuer a code resolved to.
+        const fromKey = this.assetToKey(fromAsset)
+        const toKey = this.assetToKey(toAsset)
+
+        let timer: ReturnType<typeof setTimeout> | undefined
+        try {
+            const strictSendBuilder: any = this.server.strictSendPaths(fromAsset, this.amountToString(sendAmount), [toAsset])
+            if (!strictSendBuilder || typeof strictSendBuilder.call !== 'function') {
+                return {
+                    reachable: false,
+                    reason: 'api_unavailable',
+                    fromAsset: fromKey,
+                    toAsset: toKey,
+                    latencyMs: Date.now() - startedAt,
+                    pathCount: 0,
+                    error: 'Horizon client does not expose strictSendPaths'
+                }
+            }
+
+            const query: Promise<any> = Promise.resolve().then(() => strictSendBuilder.call())
+            // Attach a handler up front so a late rejection after a timeout never
+            // surfaces as an unhandled rejection.
+            void query.catch(() => undefined)
+
+            const timeout = new Promise<never>((_resolve, reject) => {
+                timer = setTimeout(() => reject(new DexProbeTimeoutError(timeoutMs)), timeoutMs)
+            })
+
+            const page: any = await Promise.race([query, timeout])
+            const records: RawPathRecord[] = Array.isArray(page?.records) ? page.records : []
+
+            let bestDestinationAmount: number | undefined
+            for (const record of records) {
+                const destAmount = Number.parseFloat(record?.destination_amount ?? '')
+                if (!Number.isFinite(destAmount)) continue
+                if (bestDestinationAmount === undefined || destAmount > bestDestinationAmount) {
+                    bestDestinationAmount = destAmount
+                }
+            }
+
+            return {
+                reachable: true,
+                reason: records.length > 0 ? 'ok' : 'no_path',
+                fromAsset: fromKey,
+                toAsset: toKey,
+                latencyMs: Date.now() - startedAt,
+                pathCount: records.length,
+                ...(bestDestinationAmount === undefined ? {} : { bestDestinationAmount })
+            }
+        } catch (error) {
+            const httpStatus = error instanceof DexProbeTimeoutError ? undefined : this.readHttpStatus(error)
+            return {
+                reachable: false,
+                reason: error instanceof DexProbeTimeoutError
+                    ? 'timeout'
+                    : httpStatus === undefined
+                        ? 'error'
+                        : 'http_error',
+                fromAsset: fromKey,
+                toAsset: toKey,
+                latencyMs: Date.now() - startedAt,
+                pathCount: 0,
+                ...(httpStatus === undefined ? {} : { httpStatus }),
+                error: this.getErrorMessage(error)
+            }
+        } finally {
+            if (timer !== undefined) clearTimeout(timer)
+        }
+    }
+
+    async executeRebalanceTrades(
+        userAddress: string,
+        trades: DEXTradeRequest[],
+        requestedConfig: Partial<RebalanceExecutionConfig> = {}
+    ): Promise<DEXRebalanceExecutionResult> {
+        const config = {
+            ...this.getDefaultExecutionConfig(),
+            ...requestedConfig
+        }
+
+        const rollback: DEXRollbackResult = {
+            attempted: false,
+            success: true,
+            rolledBackTrades: 0,
+            failures: []
+        }
+
+        const signer = this.resolveSigner(userAddress, config.signerSecret)
+        const fee = await this.server.fetchBaseFee()
+
+        const executedTrades: DEXTradeExecutionResult[] = []
+        const failedTrades: DEXTradeExecutionResult[] = []
+        const partialFills: DEXTradeExecutionResult[] = []
+        let slippageGuardFailure: string | undefined
+
+        let slippageWeightedSum = 0
+        let slippageWeight = 0
+        let totalEstimatedFeeXLM = 0
+
+        for (const trade of trades) {
+            const effectiveTradeSlippage = this.getEffectiveTradeSlippage(config, trade.maxSlippageBps)
+            const effectiveMaxHops = this.getEffectiveMaxHops(config, trade.maxHops)
+            const tradeResult = await this.executeSingleTrade(
+                signer,
+                trade,
+                effectiveTradeSlippage,
+                config.maxSpreadBps,
+                config.minLiquidityCoverage,
+                config.allowPartialFill,
+                effectiveMaxHops,
+                fee,
+                config.horizonMaxRetries,
+                config.horizonBaseRetryDelayMs,
+                config.horizonMaxRetryDelayMs
+            )
+
+            totalEstimatedFeeXLM = Dec.addStroopFee(totalEstimatedFeeXLM, fee)
+
+            if (tradeResult.status === 'failed') {
+                failedTrades.push(tradeResult)
+                // A disallowed partial fill still left a position in the account;
+                // keep it in executedTrades so rollback/reconciliation can act on it.
+                if (tradeResult.executedAmount > 0) {
+                    executedTrades.push(tradeResult)
+                }
+                break
+            }
+
+            executedTrades.push(tradeResult)
+            if (tradeResult.status === 'partial') {
+                partialFills.push(tradeResult)
+            }
+
+            if (tradeResult.executedAmount > 0) {
+                const tradeNotional = tradeResult.executedAmount * tradeResult.referencePrice
+                const measuredSlippage = tradeResult.slippageBps > 0 ? tradeResult.slippageBps : effectiveTradeSlippage
+                slippageWeightedSum += measuredSlippage * tradeNotional
+                slippageWeight += tradeNotional
+            }
+
+            const cumulativeSlippageBps = slippageWeight > 0 ? (slippageWeightedSum / slippageWeight) : 0
+            if (cumulativeSlippageBps > config.maxSlippageBpsPerRebalance) {
+                // The guard-tripping leg did execute, so it stays in
+                // `executedTrades` for rollback to reverse; carrying only the
+                // reason here avoids double-counting it in routeLength.
+                slippageGuardFailure = `Rebalance slippage ${Dec.formatBps(cumulativeSlippageBps)} bps exceeds max ${config.maxSlippageBpsPerRebalance} bps`
+                break
+            }
+        }
+
+        let status: DEXRebalanceExecutionResult['status'] = 'success'
+        let failureReason: string | undefined
+
+        if (slippageGuardFailure) {
+            status = 'failed'
+            failureReason = slippageGuardFailure
+        } else if (failedTrades.length > 0) {
+            status = 'failed'
+            failureReason = failedTrades[0].failureReason || 'Trade execution failed'
+        } else if (partialFills.length > 0) {
+            status = 'partial'
+        }
+
+        if (status === 'failed' && config.rollbackOnFailure && executedTrades.some(t => t.executedAmount > 0)) {
+            rollback.attempted = true
+            const rollbackResult = await this.rollbackExecutedTrades(signer, [...executedTrades].reverse(), config, fee)
+            rollback.success = rollbackResult.success
+            rollback.rolledBackTrades = rollbackResult.rolledBackTrades
+            rollback.failures = rollbackResult.failures
+        }
+
+        
+        if (executedTrades.length > 0 && (failedTrades.length > 0 || partialFills.length > 0 || slippageGuardFailure)) {
+            logger.warn('[DEX] rebalance_partial_failure', {
+                userAddress,
+                succeededLegs: executedTrades.map(t => ({
+                    tradeId: t.tradeId,
+                    fromAsset: t.fromAsset,
+                    toAsset: t.toAsset,
+                    executedAmount: t.executedAmount,
+                    status: t.status,
+                    txHash: t.txHash,
+                    rolledBack: t.rolledBack ?? false
+                })),
+                failedLegs: failedTrades.map(t => ({
+                    tradeId: t.tradeId,
+                    fromAsset: t.fromAsset,
+                    toAsset: t.toAsset,
+                    failureReason: t.failureReason
+                })),
+                rollback
+            })
+        }
+
+        const totalSlippageBps = slippageWeight > 0 ? (slippageWeightedSum / slippageWeight) : 0
+        const allTrades = [...executedTrades, ...failedTrades]
+        const skippedAlternatives: string[] = []
+        for (const t of allTrades) {
+            if (t.spreadBps > config.maxSpreadBps) {
+                skippedAlternatives.push(`${t.fromAsset}→${t.toAsset}: spread ${Dec.formatBps(t.spreadBps)} bps exceeded max`)
+            } else if (t.liquidityCoverage < config.minLiquidityCoverage) {
+                skippedAlternatives.push(`${t.fromAsset}→${t.toAsset}: liquidity ${t.liquidityCoverage.toFixed(2)}x below required`)
+            }
+        }
+
+        const routeLength = executedTrades.length + failedTrades.length
+        let rationale: string
+        if (status === 'success') {
+            rationale = `Executed ${executedTrades.length} trade(s) with avg slippage ${Dec.formatBps(totalSlippageBps)} bps`
+        } else if (status === 'partial') {
+            rationale = `Partial fill: ${executedTrades.length} trade(s) executed, ${partialFills.length} partially filled`
+        } else {
+            rationale = failureReason || 'Execution failed'
+        }
+
+        const explanation: ExecutionExplanation = {
+            routeLength,
+            estimatedSlippage: totalSlippageBps,
+            skippedAlternatives,
+            rationale,
+            partialFill: partialFills.length > 0
+                || executedTrades.some(t => (t.remainingAmount || 0) > 0 && (t.executedAmount || 0) > 0),
+            filledAmount: this.roundAmount(executedTrades.reduce(
+                (total, trade) => total + (trade.executedAmount || 0), 0
+            )),
+            ...(status === 'failed' && failureReason ? { failureReason } : {})
+        }
+
+        return {
+            status,
+            executedTrades,
+            partialFills,
+            failedTrades,
+            totalEstimatedFeeXLM,
+            totalSlippageBps,
+            rollback,
+            failureReason,
+            explanation
+        }
+    }
+
+    async assessRebalanceTrades(
+        trades: DEXTradeRequest[],
+        requestedConfig: Partial<RebalanceExecutionConfig> = {}
+    ): Promise<DEXRebalanceAssessmentResult> {
+        const config = {
+            ...this.getDefaultExecutionConfig(),
+            ...requestedConfig
+        }
+
+        const assessedTrades: DEXTradeAssessmentResult[] = []
+        const executableTrades: DEXTradeAssessmentResult[] = []
+        const skippedTrades: DEXTradeAssessmentResult[] = []
+
+        const feeEstimate = await this.estimateNetworkFeeXlm(trades.length)
+        let slippageWeightedSum = 0
+        let slippageWeight = 0
+
+        for (const trade of trades) {
+            const effectiveTradeSlippage = this.getEffectiveTradeSlippage(config, trade.maxSlippageBps)
+            const effectiveMaxHops = this.getEffectiveMaxHops(config, trade.maxHops)
+            const assessment = await this.assessSingleTrade(
+                trade,
+                effectiveTradeSlippage,
+                config.maxSpreadBps,
+                config.minLiquidityCoverage,
+                effectiveMaxHops
+            )
+
+            if (assessment.status === 'skipped') {
+                assessedTrades.push(assessment)
+                skippedTrades.push(assessment)
+                continue
+            }
+
+            if (assessment.requestedAmount > 0 && assessment.referencePrice > 0) {
+                const notional = assessment.requestedAmount * assessment.referencePrice
+                slippageWeightedSum += assessment.slippageBps * notional
+                slippageWeight += notional
+            }
+
+            const cumulativeSlippageBps = slippageWeight > 0 ? (slippageWeightedSum / slippageWeight) : 0
+            if (cumulativeSlippageBps > config.maxSlippageBpsPerRebalance) {
+                const skipped: DEXTradeAssessmentResult = {
+                    ...assessment,
+                    status: 'skipped',
+                    skipReason: `Rebalance slippage ${Dec.formatBps(cumulativeSlippageBps)} bps exceeds max ${config.maxSlippageBpsPerRebalance} bps`
+                }
+                assessedTrades.push(skipped)
+                skippedTrades.push(skipped)
+                continue
+            }
+
+            assessedTrades.push(assessment)
+            executableTrades.push(assessment)
+        }
+
+        const status: DEXRebalanceAssessmentResult['status'] =
+            executableTrades.length === 0
+                ? 'failed'
+                : skippedTrades.length > 0
+                    ? 'partial'
+                    : 'success'
+
+        return {
+            status,
+            assessedTrades,
+            executableTrades,
+            skippedTrades,
+            totalEstimatedFeeXLM: feeEstimate.totalFeeXlm,
+            totalSlippageBps: slippageWeight > 0 ? (slippageWeightedSum / slippageWeight) : 0
+        }
+    }
+
+    private async assessSingleTrade(
+        trade: DEXTradeRequest,
+        maxSlippageBps: number,
+        maxSpreadBps: number,
+        minLiquidityCoverage: number,
+        maxHops: number
+    ): Promise<DEXTradeAssessmentResult> {
+        const requestedAmount = this.roundAmount(trade.amount)
+        let fromAsset: Asset
+        let toAsset: Asset
+
+        try {
+            fromAsset = this.getAssetObject(trade.fromAsset)
+            toAsset = this.getAssetObject(trade.toAsset)
+        } catch (error) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                estimatedReceivedAmount: 0,
+                referencePrice: 0,
+                priceLimit: 0,
+                spreadBps: 0,
+                slippageBps: 0,
+                liquidityCoverage: 0,
+                status: 'skipped',
+                skipReason: this.getErrorMessage(error)
+            }
+        }
+
+        if (requestedAmount <= 0) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                estimatedReceivedAmount: 0,
+                referencePrice: 0,
+                priceLimit: 0,
+                spreadBps: 0,
+                slippageBps: 0,
+                liquidityCoverage: 0,
+                status: 'skipped',
+                skipReason: 'Trade amount must be greater than zero'
+            }
+        }
+
+        let market = await this.assessMarket(fromAsset, toAsset, requestedAmount)
+        let discoveredPath: DiscoveredPath | undefined
+
+        if (market.referencePrice <= 0 || market.liquidityCoverage <= 0) {
+            discoveredPath = await this.discoverPath(fromAsset, toAsset, requestedAmount, maxHops)
+        }
+
+        if (discoveredPath) {
+            market = {
+                referencePrice: discoveredPath.referencePrice,
+                spreadBps: 0,
+                liquidityCoverage: 1
+            }
+        } else if (market.referencePrice <= 0) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                estimatedReceivedAmount: 0,
+                referencePrice: 0,
+                priceLimit: 0,
+                spreadBps: 0,
+                slippageBps: 0,
+                liquidityCoverage: 0,
+                status: 'skipped',
+                skipReason: `No direct trading pair or multi-hop path found between ${trade.fromAsset} and ${trade.toAsset}`
+            }
+        } else if (market.spreadBps > maxSpreadBps) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                estimatedReceivedAmount: 0,
+                referencePrice: market.referencePrice,
+                priceLimit: market.referencePrice,
+                spreadBps: market.spreadBps,
+                slippageBps: 0,
+                liquidityCoverage: market.liquidityCoverage,
+                status: 'skipped',
+                skipReason: `Spread ${Dec.formatBps(market.spreadBps)} bps exceeds max ${maxSpreadBps} bps`
+            }
+        }
+
+        if (market.liquidityCoverage < minLiquidityCoverage) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                estimatedReceivedAmount: 0,
+                referencePrice: market.referencePrice,
+                priceLimit: market.referencePrice,
+                spreadBps: market.spreadBps,
+                slippageBps: 0,
+                liquidityCoverage: market.liquidityCoverage,
+                status: 'skipped',
+                skipReason: `Liquidity coverage ${Dec.formatBps(market.liquidityCoverage, 2)}x below required ${minLiquidityCoverage}x`
+            }
+        }
+
+        const priceLimit = Dec.priceLimit(market.referencePrice, maxSlippageBps)
+        if (!Number.isFinite(priceLimit) || priceLimit <= 0) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                estimatedReceivedAmount: 0,
+                referencePrice: market.referencePrice,
+                priceLimit: 0,
+                spreadBps: market.spreadBps,
+                slippageBps: 0,
+                liquidityCoverage: market.liquidityCoverage,
+                status: 'skipped',
+                skipReason: 'Invalid limit price computed for trade'
+            }
+        }
+
+        return {
+            tradeId: trade.tradeId,
+            fromAsset: trade.fromAsset,
+            toAsset: trade.toAsset,
+            requestedAmount,
+            estimatedReceivedAmount: discoveredPath
+                ? discoveredPath.estimatedDestinationAmount
+                : this.roundAmount(requestedAmount * market.referencePrice),
+            referencePrice: market.referencePrice,
+            priceLimit,
+            spreadBps: market.spreadBps,
+            slippageBps: maxSlippageBps,
+            liquidityCoverage: market.liquidityCoverage,
+            status: 'executable',
+            ...(discoveredPath ? { path: discoveredPath.intermediateAssets } : {})
+        }
+    }
+
+    private async executeSingleTrade(
+        signer: Keypair,
+        trade: DEXTradeRequest,
+        maxSlippageBps: number,
+        maxSpreadBps: number,
+        minLiquidityCoverage: number,
+        allowPartialFill: boolean,
+        maxHops: number,
+        baseFee: number,
+        horizonMaxRetries?: number,
+        horizonBaseRetryDelayMs?: number,
+        horizonMaxRetryDelayMs?: number
+    ): Promise<DEXTradeExecutionResult> {
+        const requestedAmount = this.roundAmount(trade.amount)
+        let fromAsset: Asset
+        let toAsset: Asset
+
+        try {
+            fromAsset = this.getAssetObject(trade.fromAsset)
+            toAsset = this.getAssetObject(trade.toAsset)
+        } catch (error) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                executedAmount: 0,
+                estimatedReceivedAmount: 0,
+                remainingAmount: requestedAmount,
+                referencePrice: 0,
+                priceLimit: 0,
+                spreadBps: 0,
+                slippageBps: 0,
+                liquidityCoverage: 0,
+                status: 'failed',
+                failureReason: this.getErrorMessage(error)
+            }
+        }
+
+        if (requestedAmount <= 0) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                executedAmount: 0,
+                estimatedReceivedAmount: 0,
+                remainingAmount: requestedAmount,
+                referencePrice: 0,
+                priceLimit: 0,
+                spreadBps: 0,
+                slippageBps: 0,
+                liquidityCoverage: 0,
+                status: 'failed',
+                failureReason: 'Trade amount must be greater than zero'
+            }
+        }
+
+        let market = await this.assessMarket(fromAsset, toAsset, requestedAmount)
+        let discoveredPath: DiscoveredPath | undefined
+
+        if (market.referencePrice <= 0 || market.liquidityCoverage <= 0) {
+            discoveredPath = await this.discoverPath(fromAsset, toAsset, requestedAmount, maxHops)
+        }
+
+        if (discoveredPath) {
+            market = {
+                referencePrice: discoveredPath.referencePrice,
+                spreadBps: 0,
+                liquidityCoverage: 1
+            }
+        } else if (market.referencePrice <= 0) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                executedAmount: 0,
+                estimatedReceivedAmount: 0,
+                remainingAmount: requestedAmount,
+                referencePrice: 0,
+                priceLimit: 0,
+                spreadBps: 0,
+                slippageBps: 0,
+                liquidityCoverage: 0,
+                status: 'failed',
+                failureReason: `No direct trading pair or multi-hop path found between ${trade.fromAsset} and ${trade.toAsset}`
+            }
+        } else if (market.spreadBps > maxSpreadBps) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                executedAmount: 0,
+                estimatedReceivedAmount: 0,
+                remainingAmount: requestedAmount,
+                referencePrice: market.referencePrice,
+                priceLimit: market.referencePrice,
+                spreadBps: market.spreadBps,
+                slippageBps: 0,
+                liquidityCoverage: market.liquidityCoverage,
+                status: 'failed',
+                failureReason: `Spread ${Dec.formatBps(market.spreadBps)} bps exceeds max ${maxSpreadBps} bps`
+            }
+        }
+
+        if (market.liquidityCoverage < minLiquidityCoverage) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                executedAmount: 0,
+                estimatedReceivedAmount: 0,
+                remainingAmount: requestedAmount,
+                referencePrice: market.referencePrice,
+                priceLimit: market.referencePrice,
+                spreadBps: market.spreadBps,
+                slippageBps: 0,
+                liquidityCoverage: market.liquidityCoverage,
+                status: 'failed',
+                failureReason: `Liquidity coverage ${Dec.formatBps(market.liquidityCoverage, 2)}x below required ${minLiquidityCoverage}x`
+            }
+        }
+
+        const priceLimit = Dec.priceLimit(market.referencePrice, maxSlippageBps)
+        if (!Number.isFinite(priceLimit) || priceLimit <= 0) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                executedAmount: 0,
+                estimatedReceivedAmount: 0,
+                remainingAmount: requestedAmount,
+                referencePrice: market.referencePrice,
+                priceLimit: 0,
+                spreadBps: market.spreadBps,
+                slippageBps: 0,
+                liquidityCoverage: market.liquidityCoverage,
+                status: 'failed',
+                failureReason: 'Invalid limit price computed for trade'
+            }
+        }
+
+        try {
+            const accountId = signer.publicKey()
+            const offersBefore = discoveredPath ? undefined : await this.getOpenOffersById(accountId)
+            const account = await this.server.loadAccount(accountId)
+            const txBuilder = new TransactionBuilder(account, {
+                fee: baseFee.toString(),
+                networkPassphrase: this.networkPassphrase
+            })
+
+            if (discoveredPath) {
+                const pathAssets = this.buildPathHopAssets(discoveredPath, fromAsset, toAsset)
+                const destMin = this.roundAmount(requestedAmount * priceLimit)
+                txBuilder.addOperation(
+                    Operation.pathPaymentStrictSend({
+                        sendAsset: fromAsset,
+                        sendAmount: this.amountToString(requestedAmount),
+                        destination: accountId,
+                        destAsset: toAsset,
+                        destMin: this.amountToString(destMin),
+                        path: pathAssets
+                    })
+                )
+            } else {
+                txBuilder.addOperation(
+                    Operation.manageSellOffer({
+                        selling: fromAsset,
+                        buying: toAsset,
+                        amount: this.amountToString(requestedAmount),
+                        price: Dec.formatStellar(priceLimit),
+                        offerId: '0'
+                    })
+                )
+            }
+            txBuilder.addMemo(Memo.text(this.buildTradeMemo(trade.tradeId)))
+            txBuilder.setTimeout(60)
+
+            const tx = txBuilder.build()
+            tx.sign(signer)
+
+            const submitResponse = await this.submitTransactionWithRetry(
+                tx,
+                horizonMaxRetries,
+                horizonBaseRetryDelayMs,
+                horizonMaxRetryDelayMs
+            )
+            const txHash = submitResponse.hash
+
+            let executedAmount = requestedAmount
+            let remainingAmount = 0
+
+            if (!discoveredPath) {
+                let offersAfter = await this.getOpenOffersById(accountId)
+                let newOffer = this.findNewOffer(offersBefore ?? new Map(), offersAfter, fromAsset, toAsset)
+                if (!newOffer) {
+                    await this.delay(250)
+                    offersAfter = await this.getOpenOffersById(accountId)
+                    newOffer = this.findNewOffer(offersBefore ?? new Map(), offersAfter, fromAsset, toAsset)
+                }
+
+                if (newOffer) {
+                    remainingAmount = this.roundAmount(parseFloat(newOffer.amount))
+                    if (remainingAmount > 0 && !allowPartialFill) {
+                        await this.cancelOffer(signer, newOffer, fromAsset, toAsset, baseFee)
+                    }
+                }
+
+                executedAmount = this.roundAmount(Math.max(0, requestedAmount - remainingAmount))
+            }
+
+            let status: DEXTradeExecutionResult['status'] =
+                executedAmount <= 0 ? 'failed' : remainingAmount > 0 ? 'partial' : 'executed'
+
+            let failureReason: string | undefined
+            if (status === 'partial' && !allowPartialFill) {
+                status = 'failed'
+                failureReason = 'Partial fill is not allowed by rebalance configuration'
+            }
+
+            const observedPrice = await this.tryGetAverageTradePrice(txHash)
+            const executionPrice = observedPrice && observedPrice > 0 ? observedPrice : market.referencePrice
+            const estimatedReceivedAmount = discoveredPath
+                ? discoveredPath.estimatedDestinationAmount
+                : this.roundAmount(executedAmount * executionPrice)
+            const slippageBps = market.referencePrice > 0
+                ? Math.max(0, ((market.referencePrice - executionPrice) / market.referencePrice) * 10000)
+                : 0
+
+            // Emit slippage telemetry for successful trades (#1178)
+            if (status === 'executed' || status === 'partial') {
+                recordTradeSlippage({
+                    portfolioId: trade.portfolioId || 'unknown',
+                    fromAsset: trade.fromAsset,
+                    toAsset: trade.toAsset,
+                    slippageBps,
+                    executionPrice
+                })
+            }
+
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                executedAmount,
+                estimatedReceivedAmount,
+                remainingAmount,
+                referencePrice: market.referencePrice,
+                priceLimit,
+                spreadBps: market.spreadBps,
+                slippageBps,
+                liquidityCoverage: market.liquidityCoverage,
+                status,
+                txHash,
+                ...(discoveredPath ? { path: discoveredPath.intermediateAssets } : {}),
+                failureReason: status === 'failed'
+                    ? (failureReason || 'Offer placed but no fill received')
+                    : undefined
+            }
+        } catch (error) {
+            return {
+                tradeId: trade.tradeId,
+                fromAsset: trade.fromAsset,
+                toAsset: trade.toAsset,
+                requestedAmount,
+                executedAmount: 0,
+                estimatedReceivedAmount: 0,
+                remainingAmount: requestedAmount,
+                referencePrice: market.referencePrice,
+                priceLimit,
+                spreadBps: market.spreadBps,
+                slippageBps: 0,
+                liquidityCoverage: market.liquidityCoverage,
+                status: 'failed',
+                failureReason: this.getErrorMessage(error)
+            }
+        }
+    }
+
+    private async rollbackExecutedTrades(
+        signer: Keypair,
+        executedTrades: DEXTradeExecutionResult[],
+        config: RebalanceExecutionConfig,
+        baseFee: number
+    ): Promise<DEXRollbackResult> {
+        const result: DEXRollbackResult = {
+            attempted: true,
+            success: true,
+            rolledBackTrades: 0,
+            failures: []
+        }
+
+        for (const trade of executedTrades) {
+            if (trade.executedAmount <= 0 || trade.estimatedReceivedAmount <= 0) {
+                continue
+            }
+
+            const rollbackTrade: DEXTradeRequest = {
+                tradeId: `rollback-${trade.tradeId}`,
+                fromAsset: trade.toAsset,
+                toAsset: trade.fromAsset,
+                amount: trade.estimatedReceivedAmount,
+                maxSlippageBps: trade.slippageBps > 0 ? Math.ceil(trade.slippageBps) : config.maxSlippageBpsPerTrade
+            }
+
+            const rollbackExec = await this.executeSingleTrade(
+                signer,
+                rollbackTrade,
+                this.getEffectiveTradeSlippage(config, rollbackTrade.maxSlippageBps),
+                config.maxSpreadBps,
+                config.minLiquidityCoverage,
+                config.allowPartialFill,
+                this.getEffectiveMaxHops(config),
+                baseFee,
+                config.horizonMaxRetries,
+                config.horizonBaseRetryDelayMs,
+                config.horizonMaxRetryDelayMs
+            )
+
+            if (rollbackExec.status === 'executed' || rollbackExec.status === 'partial') {
+                trade.rolledBack = true
+                trade.rollbackTxHash = rollbackExec.txHash
+                result.rolledBackTrades += 1
+            } else {
+                result.success = false
+                result.failures.push(
+                    `Rollback failed for ${trade.tradeId}: ${rollbackExec.failureReason || 'unknown error'}`
+                )
+            }
+        }
+
+        return result
+    }
+
+    private async assessMarket(
+        fromAsset: Asset,
+        toAsset: Asset,
+        amount: number
+    ): Promise<MarketAssessment> {
+        const orderbook = await this.server.orderbook(fromAsset, toAsset).call()
+        const bids = Array.isArray((orderbook as any).bids) ? (orderbook as any).bids as Array<{ price: string, amount: string }> : []
+        const asks = Array.isArray((orderbook as any).asks) ? (orderbook as any).asks as Array<{ price: string, amount: string }> : []
+
+        const bestBid = bids.length > 0 ? parseFloat(bids[0].price) : 0
+        const bestAsk = asks.length > 0 ? parseFloat(asks[0].price) : 0
+
+        if (bestBid <= 0) {
+            return {
+                referencePrice: bestAsk > 0 ? bestAsk : 0,
+                spreadBps: Number.POSITIVE_INFINITY,
+                liquidityCoverage: 0
+            }
+        }
+
+        const availableLiquidity = bids.reduce((sum, bid) => sum + parseFloat(bid.amount || '0'), 0)
+        const spreadBps = (bestAsk > 0 && bestBid > 0)
+            ? ((bestAsk - bestBid) / bestAsk) * 10000
+            : 0
+
+        return {
+            referencePrice: bestBid,
+            spreadBps,
+            liquidityCoverage: availableLiquidity / amount
+        }
+    }
+
+    private async discoverPath(
+        fromAsset: Asset,
+        toAsset: Asset,
+        sendAmount: number,
+        maxHops: number
+    ): Promise<DiscoveredPath | undefined> {
+        const fromKey = this.assetToKey(fromAsset)
+        const toKey = this.assetToKey(toAsset)
+        const sourceAmount = this.amountToString(sendAmount)
+
+        try {
+            const strictSendBuilder: any = this.server.strictSendPaths(fromAsset, sourceAmount, [toAsset])
+            if (!strictSendBuilder || typeof strictSendBuilder.call !== 'function') {
+                return undefined
+            }
+
+            const page: any = await strictSendBuilder.call()
+            const records: RawPathRecord[] = Array.isArray(page?.records) ? page.records : []
+            if (records.length === 0) return undefined
+
+            let best: DiscoveredPath | undefined
+            for (const record of records) {
+                const rawPath: RawPathAsset[] = Array.isArray(record.path) ? record.path : []
+                if (rawPath.length > maxHops) continue
+
+                const destAmount = Number.parseFloat(record.destination_amount)
+                if (!Number.isFinite(destAmount) || destAmount <= 0) continue
+
+                const destinationKey = this.rawOfferAssetToKey({
+                    asset_type: record.destination_asset_type,
+                    asset_code: record.destination_asset_code,
+                    asset_issuer: record.destination_asset_issuer
+                })
+                if (destinationKey !== toKey) continue
+
+                const candidate: DiscoveredPath = {
+                    sourceAsset: fromKey,
+                    destinationAsset: toKey,
+                    intermediateAssets: rawPath
+                        .map(hop => this.rawOfferAssetToKey(hop))
+                        .filter(key => key !== fromKey && key !== toKey),
+                    pathLength: rawPath.length,
+                    sendAmount: this.roundAmount(sendAmount),
+                    estimatedDestinationAmount: this.roundAmount(destAmount),
+                    referencePrice: sendAmount > 0 ? destAmount / sendAmount : 0,
+                    rawPath
+                }
+
+                if (!best || this.isBetterPath(candidate, best)) {
+                    best = candidate
+                }
+            }
+
+            return best
+        } catch (error) {
+            logger.warn('[DEX] Multi-hop path discovery failed', {
+                fromAsset: fromKey,
+                toAsset: toKey,
+                maxHops,
+                error: this.getErrorMessage(error)
+            })
+            return undefined
+        }
+    }
+
+    private isBetterPath(candidate: DiscoveredPath, current: DiscoveredPath): boolean {
+        if (candidate.pathLength !== current.pathLength) {
+            return candidate.pathLength < current.pathLength
+        }
+        return candidate.estimatedDestinationAmount > current.estimatedDestinationAmount
+    }
+
+    private buildPathHopAssets(discovered: DiscoveredPath, fromAsset: Asset, toAsset: Asset): Asset[] {
+        const fromKey = this.assetToKey(fromAsset)
+        const toKey = this.assetToKey(toAsset)
+        return discovered.rawPath
+            .filter(hop => {
+                const key = this.rawOfferAssetToKey(hop)
+                return key !== fromKey && key !== toKey
+            })
+            .map(hop => this.rawPathAssetToStellarAsset(hop))
+    }
+
+    private rawPathAssetToStellarAsset(asset: RawPathAsset): Asset {
+        if (asset.asset_type === 'native' || !asset.asset_code || !asset.asset_issuer) {
+            return Asset.native()
+        }
+        return new Asset(asset.asset_code, asset.asset_issuer)
+    }
+
+    private async getOpenOffersById(accountId: string): Promise<Map<string, RawOfferRecord>> {
+        const map = new Map<string, RawOfferRecord>()
+        const offersPage = await this.server.offers().forAccount(accountId).limit(200).call() as any
+        const records = Array.isArray(offersPage.records) ? offersPage.records : []
+        for (const offer of records) {
+            map.set(String(offer.id), offer as RawOfferRecord)
+        }
+        return map
+    }
+
+    private findNewOffer(
+        before: Map<string, RawOfferRecord>,
+        after: Map<string, RawOfferRecord>,
+        fromAsset: Asset,
+        toAsset: Asset
+    ): RawOfferRecord | undefined {
+        const fromKey = this.assetToKey(fromAsset)
+        const toKey = this.assetToKey(toAsset)
+
+        for (const [offerId, offer] of after.entries()) {
+            if (before.has(offerId)) continue
+            const sellingKey = this.rawOfferAssetToKey(offer.selling)
+            const buyingKey = this.rawOfferAssetToKey(offer.buying)
+            if (sellingKey === fromKey && buyingKey === toKey) {
+                return offer
+            }
+        }
+
+        return undefined
+    }
+
+    private async cancelOffer(
+        signer: Keypair,
+        offer: RawOfferRecord,
+        fromAsset: Asset,
+        toAsset: Asset,
+        baseFee: number
+    ): Promise<void> {
+        const parsedPrice = Number.parseFloat(offer.price || '1')
+        const cancelPrice = Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : 1
+        const account = await this.server.loadAccount(signer.publicKey())
+        const txBuilder = new TransactionBuilder(account, {
+            fee: baseFee.toString(),
+            networkPassphrase: this.networkPassphrase
+        })
+
+        txBuilder.addOperation(
+            Operation.manageSellOffer({
+                selling: fromAsset,
+                buying: toAsset,
+                amount: '0',
+                price: Dec.formatStellar(cancelPrice),
+                offerId: String(offer.id)
+            })
+        )
+        txBuilder.addMemo(Memo.text('Rebalance cleanup'))
+        txBuilder.setTimeout(60)
+
+        const tx = txBuilder.build()
+        tx.sign(signer)
+        await this.server.submitTransaction(tx)
+    }
+
+    private async tryGetAverageTradePrice(txHash: string): Promise<number | undefined> {
+        try {
+            const tradesBuilder: any = this.server.trades()
+            if (typeof tradesBuilder.forTransaction !== 'function') {
+                return undefined
+            }
+
+            const page = await tradesBuilder.forTransaction(txHash).limit(200).call()
+            const records = Array.isArray(page.records) ? page.records as Array<{ base_amount: string, counter_amount: string }> : []
+            if (records.length === 0) return undefined
+
+            const totals = records.reduce((acc, trade) => {
+                const base = parseFloat(trade.base_amount || '0')
+                const counter = parseFloat(trade.counter_amount || '0')
+                return {
+                    base: acc.base + (Number.isFinite(base) ? base : 0),
+                    counter: acc.counter + (Number.isFinite(counter) ? counter : 0)
+                }
+            }, { base: 0, counter: 0 })
+
+            if (totals.base <= 0 || totals.counter <= 0) return undefined
+            return totals.counter / totals.base
+        } catch {
+            return undefined
+        }
+    }
+
+    private resolveSigner(userAddress: string, overrideSecret?: string): Keypair {
+        const secret = (overrideSecret
+            || process.env.STELLAR_REBALANCE_SECRET
+            || process.env.STELLAR_SECRET_KEY
+            || '').trim()
+
+        if (!secret) {
+            throw new Error(
+                'Missing signer secret. Set STELLAR_REBALANCE_SECRET or STELLAR_SECRET_KEY, or pass signerSecret in request.'
+            )
+        }
+
+        const signer = Keypair.fromSecret(secret)
+        const allowMismatch = this.readBooleanEnv('REBALANCE_ALLOW_SIGNER_MISMATCH', false)
+        if (!allowMismatch && signer.publicKey() !== userAddress) {
+            throw new Error(
+                `Signer account ${signer.publicKey()} does not match portfolio account ${userAddress}`
+            )
+        }
+
+        return signer
+    }
+
+    private loadAssetIssuers(): Record<string, string> {
+        const defaults: Record<string, string> = {
+            USDC: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+            BTC: 'GAUTUYY2THLF7SGITDFMXJVYH3LHDSMGEAKSBU267M2K7A3W543CKUEF',
+            ETH: 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5'
+        }
+
+        const raw = process.env.STELLAR_ASSET_ISSUERS
+        if (!raw) return defaults
+
+        try {
+            const parsed = JSON.parse(raw) as Record<string, string>
+            const merged: Record<string, string> = { ...defaults }
+            for (const [code, issuer] of Object.entries(parsed)) {
+                if (typeof code === 'string' && typeof issuer === 'string' && code && issuer) {
+                    merged[code.toUpperCase()] = issuer
+                }
+            }
+            return merged
+        } catch {
+            return defaults
+        }
+    }
+
+    private getAssetObject(assetCode: string): Asset {
+        const normalized = assetCode.toUpperCase()
+        if (normalized === 'XLM') {
+            return Asset.native()
+        }
+
+        const issuer = this.assetIssuers[normalized]
+        if (!issuer) {
+            throw new Error(
+                `Unsupported asset '${normalized}'. Add its issuer to STELLAR_ASSET_ISSUERS.`
+            )
+        }
+
+        return new Asset(normalized, issuer)
+    }
+
+    private getEffectiveTradeSlippage(config: RebalanceExecutionConfig, tradeOverride?: number): number {
+        const fromOverride = tradeOverride && tradeOverride > 0 ? tradeOverride : config.maxSlippageBpsPerTrade
+        return Math.min(fromOverride, config.maxSlippageBpsPerRebalance)
+    }
+
+    private getEffectiveMaxHops(config: RebalanceExecutionConfig, tradeOverride?: number): number {
+        const fromOverride = tradeOverride && tradeOverride > 0 ? tradeOverride : config.maxHops
+        return Math.min(6, Math.max(1, Math.floor(fromOverride)))
+    }
+
+    private assetToKey(asset: Asset): string {
+        return asset.isNative()
+            ? 'XLM'
+            : `${asset.getCode()}:${asset.getIssuer()}`
+    }
+
+    private rawOfferAssetToKey(asset: RawOfferAsset): string {
+        if (asset.asset_type === 'native') return 'XLM'
+        return `${asset.asset_code}:${asset.asset_issuer}`
+    }
+
+    /** Horizon surfaces the HTTP status of a failed call on `error.response.status`. */
+    private readHttpStatus(error: unknown): number | undefined {
+        const status = (error as { response?: { status?: unknown } } | undefined)?.response?.status
+        return typeof status === 'number' ? status : undefined
+    }
+
+    private amountToString(amount: number): string {
+        return this.roundAmount(amount).toFixed(7)
+    }
+
+    private roundAmount(amount: number): number {
+        return Dec.roundStellar(amount)
+    }
+
+    private buildTradeMemo(tradeId: string): string {
+        const base = `RB ${tradeId}`
+        return base.length <= 28 ? base : base.slice(0, 28)
+    }
+
+    private readNumberEnv(name: string, fallback: number, min: number, max: number): number {
+        const raw = process.env[name]
+        if (!raw) return fallback
+        const parsed = Number(raw)
+        if (!Number.isFinite(parsed)) return fallback
+        return Math.min(max, Math.max(min, parsed))
+    }
+
+    private readBooleanEnv(name: string, fallback: boolean): boolean {
+        const raw = process.env[name]
+        if (!raw) return fallback
+        return raw.toLowerCase() === 'true'
+    }
+
+    private getErrorMessage(error: unknown): string {
+        if (error instanceof Error) return error.message
+        return String(error)
+    }
+
+    private async delay(ms: number): Promise<void> {
+        await new Promise(resolve => setTimeout(resolve, ms))
+    }
+
+    /**
+     * Submit transaction to Horizon with retry logic for rate-limit (429) and service unavailable (503) responses (#1177)
+     * Implements exponential backoff with jitter and bounded retry count.
+     */
+    private async submitTransactionWithRetry(
+        tx: any,
+        maxRetries?: number,
+        baseDelayMs?: number,
+        maxDelayMs?: number
+    ): Promise<any> {
+        const actualMaxRetries = maxRetries ?? 5
+        const actualBaseDelayMs = baseDelayMs ?? 1000
+        const actualMaxDelayMs = maxDelayMs ?? 30000
+        const startTime = Date.now()
+
+        for (let attempt = 0; attempt <= actualMaxRetries; attempt++) {
+            try {
+                const response = await this.server.submitTransaction(tx)
+                
+                // On success, record metrics if this was a retry
+                if (attempt > 0) {
+                    const durationSeconds = (Date.now() - startTime) / 1000
+                    recordHorizonSubmissionRetry({
+                        statusCode: 200,
+                        durationSeconds,
+                        outcome: 'success'
+                    })
+                    logger.info('[DEX] Horizon submission succeeded after retry', {
+                        attempt,
+                        durationSeconds
+                    })
+                }
+                
+                return response
+            } catch (error: any) {
+                const isRateLimit = error?.response?.status === 429
+                const isServiceUnavailable = error?.response?.status === 503
+                const shouldRetry = (isRateLimit || isServiceUnavailable) && attempt < actualMaxRetries
+
+                if (!shouldRetry) {
+                    // Record failure for non-retryable errors or after max retries
+                    if (attempt > 0) {
+                        const durationSeconds = (Date.now() - startTime) / 1000
+                        recordHorizonSubmissionRetry({
+                            statusCode: error?.response?.status || 500,
+                            durationSeconds,
+                            outcome: 'failure'
+                        })
+                    }
+                    throw error
+                }
+
+                // Calculate exponential backoff with jitter
+                const exponentialDelay = actualBaseDelayMs * Math.pow(2, attempt)
+                const jitter = Math.random() * 0.3 * exponentialDelay // Add up to 30% jitter
+                const delayMs = Math.min(actualMaxDelayMs, exponentialDelay + jitter)
+
+                logger.warn('[DEX] Horizon submission rate-limited, retrying with backoff', {
+                    attempt: attempt + 1,
+                    maxRetries: actualMaxRetries,
+                    statusCode: error?.response?.status,
+                    delayMs: Math.round(delayMs)
+                })
+
+                await this.delay(delayMs)
+            }
+        }
+
+        // This should never be reached, but TypeScript needs it
+        throw new Error('Horizon submission failed after all retries')
+    }
+}

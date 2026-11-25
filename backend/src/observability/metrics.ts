@@ -1,0 +1,833 @@
+
+import { Registry, collectDefaultMetrics, Histogram, Counter, Gauge } from 'prom-client';
+import { observabilityConfig } from './config.js';
+import type { Request, Response, NextFunction } from 'express';
+
+const register = new Registry();
+
+register.setDefaultLabels({
+  service: observabilityConfig.metrics.serviceName,
+  environment: observabilityConfig.metrics.deploymentEnv,
+  alert_contact: observabilityConfig.metrics.alertContact,
+});
+
+collectDefaultMetrics({
+  register,
+  prefix: observabilityConfig.metrics.prefix,
+});
+
+const httpRequestDuration = new Histogram({
+  name: `${observabilityConfig.metrics.prefix}http_request_duration_seconds`,
+  help: "HTTP request duration in seconds",
+  labelNames: ["method", "route", "status_code"] as const,
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  registers: [register],
+});
+
+const httpRequestsTotal = new Counter({
+  name: `${observabilityConfig.metrics.prefix}http_requests_total`,
+  help: "Total HTTP requests processed",
+  labelNames: ["method", "route", "status_code"] as const,
+  registers: [register],
+});
+
+const httpRequestsInFlight = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}http_requests_in_flight`,
+  help: "Active HTTP requests currently being processed",
+  registers: [register],
+});
+
+const readinessGauge = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}readiness_status`,
+  help: "Application readiness status, 1 when ready and 0 when not ready",
+  registers: [register],
+});
+
+const readinessDependencyLatency = new Gauge({
+    name: `${observabilityConfig.metrics.prefix}readiness_dependency_latency_ms`,
+    help: 'Measured latency (ms) for readiness dependency checks',
+    labelNames: ['dependency'] as const,
+    registers: [register],
+})
+
+const queueDepthGauge = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}queue_jobs`,
+  help: "Current queue depth by state",
+  labelNames: ["queue", "state"] as const,
+  registers: [register],
+});
+
+const queueWorkerLagGauge = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}queue_worker_lag`,
+  help: "Worker lag ratio: (waiting + delayed) / (active + 1) per queue",
+  labelNames: ["queue"] as const,
+  registers: [register],
+});
+
+const priceFeedResolutionsTotal = new Counter({
+  name: `${observabilityConfig.metrics.prefix}price_feed_resolutions_total`,
+  help: "Total price feed resolutions by final quality classification",
+  labelNames: ["resolution_hint", "degraded", "stale_or_limited"] as const,
+  registers: [register],
+});
+
+const reflectorStalePricesTotal = new Counter({
+  name: `${observabilityConfig.metrics.prefix}reflector_stale_prices_total`,
+  help: "Total stale Reflector price rows observed by asset",
+  labelNames: ["asset"] as const,
+  registers: [register],
+});
+
+const reflectorFallbackUsageTotal = new Counter({
+  name: `${observabilityConfig.metrics.prefix}reflector_fallback_usage_total`,
+  help: "Total fallback price resolutions used by the backend",
+  labelNames: ["reason"] as const,
+  registers: [register],
+});
+
+// TTL and cache metrics
+const cacheHitRatioGauge = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}cache_hit_ratio`,
+  help: "Cache hit ratio by asset (0.0 to 1.0)",
+  labelNames: ["asset"] as const,
+  registers: [register],
+});
+
+const cacheAgeHistogram = new Histogram({
+  name: `${observabilityConfig.metrics.prefix}cache_age_milliseconds`,
+  help: "Age of cached price entries in milliseconds",
+  labelNames: ["asset"] as const,
+  buckets: [100, 500, 1000, 5000, 10000, 30000, 60000, 300000, 600000],
+  registers: [register],
+});
+
+const cacheSizeGauge = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}cache_size_bytes`,
+  help: "Approximate size of price cache in bytes",
+  registers: [register],
+});
+
+const cacheEntriesGauge = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}cache_entries_total`,
+  help: "Total number of entries in price cache",
+  registers: [register],
+});
+
+const cacheOperationsTotal = new Counter({
+  name: `${observabilityConfig.metrics.prefix}cache_operations_total`,
+  help: "Cache operations (hit, miss, eviction, update)",
+  labelNames: ["operation", "asset"] as const,
+  registers: [register],
+});
+
+const cacheTtlSecondsGauge = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}cache_ttl_seconds`,
+  help: "Current TTL configuration for price cache in seconds",
+  registers: [register],
+});
+
+const cacheExpirationCounterTotal = new Counter({
+  name: `${observabilityConfig.metrics.prefix}cache_expirations_total`,
+  help: "Total number of cache entries that expired",
+  labelNames: ["asset"] as const,
+  registers: [register],
+});
+
+const queueDrainRateGauge = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}queue_drain_rate`,
+  help: "Rate of job completion (completed jobs)",
+  labelNames: ["queue"] as const,
+  registers: [register],
+});
+
+const queueFailureRateGauge = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}queue_failure_rate`,
+  help: "Failure rate: failed / (completed + failed)",
+  labelNames: ["queue"] as const,
+  registers: [register],
+});
+
+const workerHealthTotal = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}worker_health_total`,
+  help: "Total number of workers",
+  registers: [register],
+});
+
+const workerHealthyTotal = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}worker_healthy_total`,
+  help: "Number of healthy workers",
+  registers: [register],
+});
+
+const workerUnhealthyTotal = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}worker_unhealthy_total`,
+  help: "Number of unhealthy workers",
+  registers: [register],
+});
+
+const workerIdleTotal = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}worker_idle_total`,
+  help: "Number of idle workers",
+  registers: [register],
+});
+
+const workerLaggingTotal = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}worker_lagging_total`,
+  help: "Number of workers with high lag",
+  registers: [register],
+});
+
+const workerStatus = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}worker_status`,
+  help: "Per-worker status (1 = ready, 0 = not ready)",
+  labelNames: ["worker_name"] as const,
+  registers: [register],
+});
+
+const indexerLagGauge = new Gauge({
+  name: `${observabilityConfig.metrics.prefix}contract_event_indexer_lag_ledgers`,
+  help: "Gap between chain tip ledger and last-indexed ledger",
+  registers: [register],
+});
+
+const indexerErrorsTotal = new Counter({
+  name: `${observabilityConfig.metrics.prefix}contract_event_indexer_errors_total`,
+  help: "Total errors encountered by the contract event indexer",
+  registers: [register],
+});
+
+export const dbQueryDuration = new Histogram({
+  name: `${observabilityConfig.metrics.prefix}db_query_duration_seconds`,
+  help: "Database query duration in seconds",
+  labelNames: ["operation", "status"] as const,
+  buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5],
+  registers: [register],
+});
+
+const routeLabel = (req: Request): string =>
+  req.route?.path || req.path || "unknown";
+
+export const metricsMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
+  if (!observabilityConfig.metrics.enabled) {
+    next();
+    return;
+  }
+
+  httpRequestsInFlight.inc();
+  const start = process.hrtime.bigint();
+
+  res.on("finish", () => {
+    const durationSeconds =
+      Number(process.hrtime.bigint() - start) / 1_000_000_000;
+    const labels = {
+      method: req.method,
+      route: routeLabel(req),
+      status_code: String(res.statusCode),
+    };
+
+    httpRequestsTotal.inc(labels, 1);
+    httpRequestDuration.observe(labels, durationSeconds);
+    httpRequestsInFlight.dec();
+  });
+
+  next();
+};
+
+export async function getMetricsPayload(): Promise<string> {
+  if (!observabilityConfig.metrics.enabled) {
+    return '# metrics disabled\n';
+  }
+
+  try {
+    const { buildReadinessReport } = await import('../monitoring/readiness.js');
+    const readiness = await buildReadinessReport();
+    readinessGauge.set((readiness as any).status === 'ready' ? 1 : 0);
+  } catch (err) {
+    readinessGauge.set(0);
+  }
+
+  try {
+    const { getQueueMetrics, QUEUE_METRIC_NAMES, QUEUE_METRIC_STATES } = await import('../queue/queueMetrics.js');
+    const queueMetrics = await getQueueMetrics();
+    if (queueMetrics && queueMetrics.queues) {
+      for (const queue of QUEUE_METRIC_NAMES) {
+        const stats = queueMetrics.queues[queue];
+        for (const state of QUEUE_METRIC_STATES) {
+          queueDepthGauge.set({ queue, state }, stats?.[state] ?? 0);
+        }
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+
+  return await register.metrics();
+}
+
+export function getMetricsContentType(): string {
+  return register.contentType;
+}
+
+export function recordCacheOperation(operation: "hit" | "miss" | "eviction" | "update", asset: string): void {
+  cacheOperationsTotal.inc({ operation, asset });
+}
+
+export function recordCacheTtl(ttlSeconds: number): void {
+  cacheTtlSecondsGauge.set(ttlSeconds);
+}
+
+export function recordCacheExpiration(asset: string): void {
+  cacheExpirationCounterTotal.inc({ asset });
+}
+
+export function recordPriceFeedResolution(meta: { resolutionHint: string; degraded: boolean; staleOrLimited: boolean }): void {
+  priceFeedResolutionsTotal.inc({
+    resolution_hint: meta.resolutionHint,
+    degraded: String(meta.degraded),
+    stale_or_limited: String(meta.staleOrLimited),
+  });
+}
+
+export function recordReflectorFallbackUsage(reason: string): void {
+  reflectorFallbackUsageTotal.inc({ reason });
+}
+
+export function recordReflectorStalePrice(asset: string): void {
+  reflectorStalePricesTotal.inc({ asset });
+}
+
+export function recordCacheHitRatio(asset: string, ratio: number): void {
+  cacheHitRatioGauge.set({ asset }, ratio);
+}
+
+export function recordCacheAge(asset: string, ageMs: number): void {
+  cacheAgeHistogram.observe({ asset }, ageMs);
+}
+
+export function recordCacheSize(sizeBytes: number): void {
+  cacheSizeGauge.set(sizeBytes);
+}
+
+export function recordCacheEntries(count: number): void {
+  cacheEntriesGauge.set(count);
+}
+
+export function recordIndexerLag(lagLedgers: number): void {
+  indexerLagGauge.set(lagLedgers);
+}
+
+export function recordIndexerError(): void {
+  indexerErrorsTotal.inc();
+}
+
+// ── Auth security event metrics (Issue #423) ─────────────────────────────────
+
+const authSecurityEventsTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}auth_security_events_total`,
+    help: 'Total authentication security events by type',
+    labelNames: ['event_type'] as const,
+    registers: [register],
+})
+
+export function recordAuthSecurityEvent(eventType: string): void {
+    authSecurityEventsTotal.inc({ event_type: eventType })
+}
+
+// ── Notification delivery metrics (#1394) ────────────────────────────────────
+//
+// Success/failure is tracked per channel so an outage in one provider (say
+// webhooks) is visible without being averaged away by the healthy ones.
+// `reason` is a coarse, bounded classification of the failure — never the raw
+// error string, which would blow up cardinality.
+
+const notificationDeliveryTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}notification_delivery_total`,
+    help: 'Total notification delivery attempts by channel and outcome',
+    labelNames: ['channel', 'outcome', 'reason', 'event_type'] as const,
+    registers: [register],
+})
+
+const notificationDeliveryAttemptsTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}notification_delivery_attempts_total`,
+    help: 'Total individual notification delivery attempts, including retries',
+    labelNames: ['channel', 'outcome'] as const,
+    registers: [register],
+})
+
+const notificationDeliveryDuration = new Histogram({
+    name: `${observabilityConfig.metrics.prefix}notification_delivery_duration_seconds`,
+    help: 'Wall-clock duration of a notification delivery, including retries',
+    labelNames: ['channel', 'outcome'] as const,
+    buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30],
+    registers: [register],
+})
+
+const notificationDeliveryStalledTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}notification_delivery_stalled_total`,
+    help: 'Total notification deliveries that were accepted but not confirmed within the timeout window',
+    labelNames: ['channel', 'reason', 'event_type'] as const,
+    registers: [register],
+})
+
+export type NotificationDeliveryOutcome = 'success' | 'failure' | 'delayed'
+
+/**
+ * Terminal outcome of one webhook delivery attempt, in the operator vocabulary
+ * used by the delivery records: `success`, `delayed` (retry still scheduled) or
+ * `blocked` (needs an operator). See `services/webhookDeliveryOutcome.ts`.
+ */
+export type WebhookDeliveryOutcomeLabel = 'success' | 'delayed' | 'blocked'
+
+const webhookDeliveryOutcomeTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}webhook_delivery_outcome_total`,
+    help: 'Webhook delivery attempts by actionable outcome (success, delayed, blocked)',
+    labelNames: ['outcome', 'reason', 'event_type'] as const,
+    registers: [register],
+})
+
+/**
+ * Record the actionable outcome of a webhook delivery attempt. `reason` is a
+ * bounded classification, never the raw provider message, so the label set
+ * stays finite; the destination is deliberately not a label (it contains a
+ * capability token and would explode cardinality).
+ */
+export function recordWebhookDeliveryOutcome(input: {
+    outcome: WebhookDeliveryOutcomeLabel
+    reason: string
+    eventType?: string
+}): void {
+    webhookDeliveryOutcomeTotal.inc({
+        outcome: input.outcome,
+        reason: input.reason,
+        event_type: input.eventType ?? 'unknown',
+    })
+}
+
+/** Terminal outcome of a delivery (after any retries). */
+export function recordNotificationDelivery(input: {
+    channel: string
+    outcome: NotificationDeliveryOutcome
+    reason?: string
+    eventType?: string
+    durationSeconds?: number
+}): void {
+    const labels = {
+        channel: input.channel,
+        outcome: input.outcome,
+        reason: input.reason ?? 'none',
+        event_type: input.eventType ?? 'unknown',
+    }
+    notificationDeliveryTotal.inc(labels)
+
+    if (typeof input.durationSeconds === 'number') {
+        notificationDeliveryDuration.observe(
+            { channel: input.channel, outcome: input.outcome },
+            input.durationSeconds,
+        )
+    }
+}
+
+/** One attempt within a delivery — `retried` attempts are counted here only. */
+export function recordNotificationDeliveryAttempt(
+    channel: string,
+    outcome: 'success' | 'failure' | 'retried',
+): void {
+    notificationDeliveryAttemptsTotal.inc({ channel, outcome })
+}
+
+/**
+ * Record a delivery that the provider accepted but never confirmed (e.g. the
+ * provider timed out after accepting the message). This is distinct from a
+ * hard failure: the message may still be delivered, so operators need to see
+ * it as "delay/unknown" rather than "blocked". `reason` must be a coarse,
+ * bounded classification — never the raw provider error string.
+ */
+export function recordNotificationDeliveryStalled(input: {
+    channel: string
+    reason: string
+    eventType?: string
+}): void {
+    notificationDeliveryStalledTotal.inc({
+        channel: input.channel,
+        reason: input.reason,
+        event_type: input.eventType ?? 'unknown',
+    })
+}
+
+const idempotencyCleanupRunsTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}idempotency_cleanup_runs_total`,
+    help: 'Idempotency cleanup worker runs by outcome',
+    labelNames: ['outcome'] as const,
+    registers: [register],
+})
+const idempotencyCleanupRecordsTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}idempotency_cleanup_records_total`,
+    help: 'Expired idempotency records removed',
+    registers: [register],
+})
+const idempotencyCleanupLastRun = new Gauge({
+    name: `${observabilityConfig.metrics.prefix}idempotency_cleanup_last_run_timestamp_seconds`,
+    help: 'Unix timestamp of the latest cleanup attempt',
+    registers: [register],
+})
+const idempotencyCleanupConsecutiveFailures = new Gauge({
+    name: `${observabilityConfig.metrics.prefix}idempotency_cleanup_consecutive_failures`,
+    help: 'Current consecutive cleanup failure count',
+    registers: [register],
+})
+
+export function recordIdempotencyCleanupRun(success: boolean, recordsCleaned: number, failures: number): void {
+    idempotencyCleanupRunsTotal.inc({ outcome: success ? 'success' : 'failure' })
+    if (recordsCleaned > 0) idempotencyCleanupRecordsTotal.inc(recordsCleaned)
+    idempotencyCleanupLastRun.set(Date.now() / 1000)
+    idempotencyCleanupConsecutiveFailures.set(failures)
+}
+
+// ── Per-portfolio rebalance lock contention metrics (#1399) ─────────────────
+//
+// `rebalanceLockService.acquireLock` returning false means a second caller
+// (auto-rebalancer job + a manual API call, or two overlapping scheduled
+// runs) collided on the same portfolio's lock. That's invisible today —
+// silently rejected with no signal — which makes "is our lock actually
+// preventing double-rebalances, or is it just failing quietly all the time"
+// unanswerable from the outside. `backend` here is `redis` or `memory` so a
+// spike in `memory`-backed contention (single-node fallback, no real mutual
+// exclusion across instances) is distinguishable from expected `redis`
+// contention.
+//
+// No portfolio_id label: with potentially thousands of portfolios this would
+// blow up cardinality for a metric whose value is in aggregate rate/trend,
+// not per-ID inspection — use logs (rebalanceLock.ts already logs failures)
+// to drill into a specific portfolio.
+
+const lockContentionTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}rebalance_lock_contention_total`,
+    help: 'Total rebalance lock acquisition attempts that failed because the lock was already held',
+    labelNames: ['backend'] as const,
+    registers: [register],
+})
+
+const lockHoldDuration = new Histogram({
+    name: `${observabilityConfig.metrics.prefix}rebalance_lock_hold_duration_seconds`,
+    help: 'Duration a rebalance lock was held, from acquire to release',
+    labelNames: ['backend'] as const,
+    buckets: [0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300],
+    registers: [register],
+})
+
+export type LockBackend = 'redis' | 'memory'
+
+/**
+ * Bucket a portfolio identifier into a small, bounded label value so the
+ * per-portfolio lock metrics (#1399) stay low-cardinality.
+ *
+ * Raw portfolio ids are unbounded and must never be used as Prometheus label
+ * values.  16 deterministic buckets (`00`–`0f`) keep the series count fixed
+ * (per bucket x outcome) while still allowing contention hotspots to be
+ * localised to a slice of portfolios (combine with slow-acquire warning logs,
+ * which carry the full portfolio id, to drill into a specific portfolio).
+ */
+export function bucketPortfolioId(portfolioId: string): string {
+    let hash = 0
+    for (let i = 0; i < portfolioId.length; i++) {
+        hash = ((hash << 5) - hash + portfolioId.charCodeAt(i)) | 0
+    }
+    return (hash & 0xf).toString(16).padStart(2, '0')
+}
+
+/** Call when `acquireLock` returns false — the lock was already held. */
+export function recordLockContention(backend: LockBackend): void {
+    lockContentionTotal.inc({ backend })
+}
+
+/** Call from `releaseLock` with the elapsed time since the matching `acquireLock` succeeded. */
+export function recordLockHoldDuration(backend: LockBackend, durationSeconds: number): void {
+    lockHoldDuration.observe({ backend }, durationSeconds)
+}
+
+// ── Per-portfolio advisory-lock acquisition metrics (#1399) ─────────────────
+//
+// The `acquireWorkerLock` path in `rebalanceWorker.ts` (pg advisory locks)
+// previously had no visibility: a lock-already-held rejection was only
+// inferable from info logs, and slow acquisitions (stuck lock / saturated DB
+// pool) were invisible entirely.  These series make contention observable via
+// metrics:
+//
+// - `rebalance_lock_wait_seconds` — histogram of acquisition wall time,
+//   labelled by bucketed portfolio id + outcome (`acquired`|`contended`).
+// - `rebalance_lock_contention_count` — counter of lock-already-held
+//   rejections, same bucket label.  The counter makes "how often are we
+//   colliding" answerable from a dashboard; the existing
+//   `rebalance_lock_contention_total` (backend-labelled) is the Redis/memory
+//   `rebalanceLockService` counterpart and is intentionally left untouched.
+
+const workerLockWaitDuration = new Histogram({
+    name: `${observabilityConfig.metrics.prefix}rebalance_lock_wait_seconds`,
+    help: 'Wall-clock time spent acquiring a per-portfolio rebalance lock (rebalanceWorker advisory lock path)',
+    labelNames: ['portfolio_bucket', 'outcome'] as const,
+    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+    registers: [register],
+})
+
+const workerLockContentionCount = new Counter({
+    name: `${observabilityConfig.metrics.prefix}rebalance_lock_contention_count`,
+    help: 'Total per-portfolio rebalance lock acquisitions rejected because the lock was already held',
+    labelNames: ['portfolio_bucket'] as const,
+    registers: [register],
+})
+
+export type WorkerLockOutcome = 'acquired' | 'contended'
+
+/**
+ * Record one `acquireWorkerLock` attempt: wait-time histogram sample plus, on
+ * the contended path, a contention counter increment.  Both are labelled by
+ * the bucketed portfolio id.
+ */
+export function recordWorkerLockAcquisition(input: {
+    portfolioId: string
+    outcome: WorkerLockOutcome
+    waitMs: number
+}): void {
+    const bucket = bucketPortfolioId(input.portfolioId)
+    workerLockWaitDuration.observe(
+        { portfolio_bucket: bucket, outcome: input.outcome },
+        Math.max(0, input.waitMs) / 1000,
+    )
+    if (input.outcome === 'contended') {
+        workerLockContentionCount.inc({ portfolio_bucket: bucket })
+    }
+}
+
+// ── Per-trade slippage telemetry (#1178) ─────────────────────────────────────
+//
+// Tracks slippage for each executed trade with portfolio and asset-pair labels.
+// This enables analysis of execution quality across different trading pairs and
+// portfolios without blocking trade execution on metric emission failure.
+
+export const tradeSlippageBps = new Histogram({
+    name: `${observabilityConfig.metrics.prefix}trade_slippage_bps`,
+    help: 'Slippage in basis points for each executed trade',
+    labelNames: ['portfolio_bucket', 'asset_pair'] as const,
+    buckets: [0, 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+    registers: [register],
+})
+
+export const tradeExecutionPrice = new Histogram({
+    name: `${observabilityConfig.metrics.prefix}trade_execution_price`,
+    help: 'Execution price for each trade (normalized to USD equivalent)',
+    labelNames: ['portfolio_bucket', 'asset_pair'] as const,
+    buckets: [0.01, 0.1, 1, 10, 100, 1000, 10000, 100000],
+    registers: [register],
+})
+
+/**
+ * Record slippage metrics for a successfully executed trade.
+ * Uses bucketed portfolio ID to keep cardinality bounded.
+ * Metric emission failures are caught and logged to avoid blocking trade execution.
+ */
+export function recordTradeSlippage(input: {
+    portfolioId: string
+    fromAsset: string
+    toAsset: string
+    slippageBps: number
+    executionPrice: number
+}): void {
+    try {
+        const bucket = bucketPortfolioId(input.portfolioId)
+        const assetPair = `${input.fromAsset}/${input.toAsset}`
+
+        tradeSlippageBps.observe(
+            { portfolio_bucket: bucket, asset_pair: assetPair },
+            Math.max(0, input.slippageBps),
+        )
+
+        if (input.executionPrice > 0) {
+            tradeExecutionPrice.observe(
+                { portfolio_bucket: bucket, asset_pair: assetPair },
+                input.executionPrice,
+            )
+        }
+    } catch (error) {
+        // Log but don't throw - metric emission should never block trade execution
+        console.error('[METRICS] Failed to record trade slippage:', error)
+    }
+}
+
+// ── Horizon submission retry metrics (#1177) ─────────────────────────────────
+//
+// Tracks retry attempts for Horizon transaction submissions when rate-limited (429)
+// or when Horizon is unavailable (503). This helps operators see submission pressure
+// and identify when Horizon is rejecting requests.
+
+export const horizonSubmissionRetriesTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}horizon_submission_retries_total`,
+    help: 'Total Horizon transaction submission retry attempts by status code',
+    labelNames: ['status_code'] as const,
+    registers: [register],
+})
+
+export const horizonSubmissionRetryDuration = new Histogram({
+    name: `${observabilityConfig.metrics.prefix}horizon_submission_retry_duration_seconds`,
+    help: 'Duration of Horizon submission retry attempts (including backoff delays)',
+    labelNames: ['status_code', 'outcome'] as const,
+    buckets: [0.1, 0.5, 1, 2.5, 5, 10, 30, 60],
+    registers: [register],
+})
+
+/**
+ * Record a Horizon submission retry attempt.
+ */
+export function recordHorizonSubmissionRetry(input: {
+    statusCode: number
+    durationSeconds: number
+    outcome: 'success' | 'failure'
+}): void {
+    try {
+        horizonSubmissionRetriesTotal.inc({ status_code: String(input.statusCode) })
+        horizonSubmissionRetryDuration.observe(
+            { status_code: String(input.statusCode), outcome: input.outcome },
+            input.durationSeconds,
+        )
+    } catch (error) {
+        console.error('[METRICS]', 'Failed to record Horizon retry:', error)
+    }
+}
+
+// ── Portfolio API pagination metrics (SPR-2026-184) ───────────────────────────
+//
+// Tracks pagination outcomes, durations, and dataset shifts across requests.
+// Distinct 'state' label allows operators to separate success, delay, and blocked work.
+
+export type PaginationState = 'success' | 'delayed' | 'blocked'
+
+const portfolioPaginationRequestsTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}portfolio_pagination_requests_total`,
+    help: 'Total portfolio pagination requests partitioned by source, outcome, and delivery/work state',
+    labelNames: ['source', 'outcome', 'state'] as const,
+    registers: [register],
+})
+
+const portfolioPaginationItemsChangedTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}portfolio_pagination_items_changed_total`,
+    help: 'Total portfolio pagination queries where items changing during pagination were diagnosed',
+    labelNames: ['source', 'change_kind'] as const,
+    registers: [register],
+})
+
+const portfolioPaginationDurationSeconds = new Histogram({
+    name: `${observabilityConfig.metrics.prefix}portfolio_pagination_duration_seconds`,
+    help: 'Duration of portfolio pagination queries in seconds',
+    labelNames: ['source', 'outcome', 'state'] as const,
+    buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5],
+    registers: [register],
+})
+
+/**
+ * Record a portfolio pagination request outcome and execution state.
+ */
+export function recordPortfolioPaginationOutcome(input: {
+    source: string
+    outcome: string
+    state: PaginationState
+    durationSeconds?: number
+}): void {
+    try {
+        portfolioPaginationRequestsTotal.inc({
+            source: input.source,
+            outcome: input.outcome,
+            state: input.state,
+        })
+        if (typeof input.durationSeconds === 'number' && input.durationSeconds >= 0) {
+            portfolioPaginationDurationSeconds.observe(
+                {
+                    source: input.source,
+                    outcome: input.outcome,
+                    state: input.state,
+                },
+                input.durationSeconds,
+            )
+        }
+    } catch (error) {
+        console.error('[METRICS] Failed to record portfolio pagination outcome:', error)
+    }
+}
+
+/**
+ * Record when dataset items changing during pagination are diagnosed.
+ */
+export function recordPortfolioPaginationItemsChanged(input: {
+    source: string
+    changeKind: 'items_inserted' | 'items_deleted' | 'count_drift'
+}): void {
+    try {
+        portfolioPaginationItemsChangedTotal.inc({
+            source: input.source,
+            change_kind: input.changeKind,
+        })
+    } catch (error) {
+        console.error('[METRICS] Failed to record portfolio pagination items changed:', error)
+    }
+}
+
+// ── Portfolio persistence outcomes (#2083) ──────────────────────────────────
+
+export type PortfolioPersistenceSource = 'api' | 'worker' | 'other'
+export type PortfolioPersistenceOutcome = 'success' | 'delayed' | 'blocked'
+export type PortfolioPersistenceTransition = 'committed' | 'not_committed' | 'unknown'
+
+const portfolioPersistenceOutcomesTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}portfolio_persistence_outcomes_total`,
+    help: 'Portfolio persistence write outcomes by source, retry state, event status, and state transition',
+    labelNames: ['source', 'outcome', 'event_status', 'state_transition'] as const,
+    registers: [register],
+})
+
+export function recordPortfolioPersistenceOutcome(input: {
+    source: PortfolioPersistenceSource
+    outcome: PortfolioPersistenceOutcome
+    eventStatus: 'completed' | 'failed' | 'pending'
+    stateTransition: PortfolioPersistenceTransition
+}): void {
+    try {
+        portfolioPersistenceOutcomesTotal.inc({
+            source: input.source,
+            outcome: input.outcome,
+            event_status: input.eventStatus,
+            state_transition: input.stateTransition,
+        })
+    } catch (error) {
+        console.error('[METRICS] Failed to record portfolio persistence outcome:', error)
+    }
+}
+
+// ── Partial trade handling outcomes (SPR-2026-129) ──────────────────────────
+
+export type PartialTradeObservabilityOutcome = 'success' | 'delay' | 'blocked'
+
+const partialTradeOutcomesTotal = new Counter({
+    name: `${observabilityConfig.metrics.prefix}rebalance_partial_trade_outcomes_total`,
+    help: 'Total partial trade handling outcomes by source, outcome, and reason code',
+    labelNames: ['source', 'outcome', 'reason_code'] as const,
+    registers: [register],
+})
+
+export function recordPartialTradeOutcome(input: {
+    source: string
+    outcome: PartialTradeObservabilityOutcome
+    reasonCode: string
+}): void {
+    try {
+        partialTradeOutcomesTotal.inc({
+            source: input.source || 'unknown',
+            outcome: input.outcome,
+            reason_code: input.reasonCode || 'unknown',
+        })
+    } catch (error) {
+        console.error('[METRICS] Failed to record partial trade outcome:', error)
+    }
+}
+

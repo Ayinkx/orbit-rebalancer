@@ -1,0 +1,38 @@
+{
+  "generatedAt": "2026-08-30T11:31:49.720Z",
+  "scopes": {
+    "root": {
+      "path": ".",
+      "baseline": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      }
+    },
+    "backend": {
+      "path": "backend",
+      "baseline": {
+        "info": 0,
+        "low": 0,
+        "moderate": 38,
+        "high": 10,
+        "critical": 3,
+        "total": 51
+      }
+    },
+    "frontend": {
+      "path": "frontend",
+      "baseline": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      }
+    }
+  }
+}

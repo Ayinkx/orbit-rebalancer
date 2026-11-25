@@ -1,0 +1,202 @@
+import { Dec } from '../utils/decimal.js'
+import type { Portfolio, PricesMap, RebalanceStrategyType, RebalanceStrategyConfig } from '../types/index.js'
+import { logger } from '../utils/logger.js'
+
+export interface RebalanceStrategyContext {
+    portfolio: Portfolio
+    prices: PricesMap
+    now?: number
+}
+
+export interface CrossCheckResult {
+    backendDecision: boolean
+    onChainDecision: boolean
+    agreement: boolean
+    finalDecision: boolean
+    warning?: string
+}
+
+export interface CrossCheckConfig {
+    requireAgreement: boolean
+    alertOnDisagreement: boolean
+}
+
+export interface DcaSchedule {
+    /** Days between scheduled buys (from `dcaIntervalDays` ?? `intervalDays` ?? 7). */
+    intervalDays: number
+    /** Milliseconds between scheduled buys. */
+    intervalMs: number
+    /** Amount to buy each interval in the portfolio's base unit (from `dcaAmount`, default 0). */
+    amount: number
+    /** Timestamp of the next scheduled buy (lastRebalance + intervalMs). */
+    nextBuyAtMs: number
+}
+
+/**
+ * Determines if a portfolio should be rebalanced based on its configured strategy.
+ */
+export function shouldRebalanceByStrategy(context: RebalanceStrategyContext): boolean {
+    const { portfolio, prices } = context
+    const strategy = portfolio.strategy ?? 'threshold'
+    const config = portfolio.strategyConfig ?? {}
+    const now = context.now ?? Date.now()
+
+    switch (strategy) {
+        case 'threshold':
+            return thresholdStrategy(portfolio, prices)
+        case 'periodic':
+            return periodicStrategy(portfolio, config, now)
+        case 'volatility':
+            return volatilityStrategy(portfolio, prices, config, now)
+        case 'custom':
+            return customStrategy(portfolio, prices, config, now)
+        case 'dca':
+            return dcaStrategy(portfolio, config, now)
+        default:
+            return thresholdStrategy(portfolio, prices)
+    }
+}
+
+function thresholdStrategy(portfolio: Portfolio, prices: PricesMap): boolean {
+    const balances = portfolio.balances ?? {}
+    let totalValue = 0
+    const currentValues: Record<string, number> = {}
+    for (const [asset, balance] of Object.entries(balances)) {
+        const price = prices[asset]?.price ?? 0
+        const value = balance * price
+        currentValues[asset] = value
+        totalValue += value
+    }
+    if (totalValue <= 0) return false
+    const threshold = portfolio.threshold ?? 5
+    for (const [asset, targetPercentage] of Object.entries(portfolio.allocations)) {
+        const currentValue = currentValues[asset] ?? 0
+        const currentPercentage = Dec.percentage(currentValue, totalValue)
+        const drift = Dec.drift(currentPercentage, targetPercentage)
+        if (drift > 50) return false
+        if (drift > threshold) return true
+    }
+    return false
+}
+
+function periodicStrategy(portfolio: Portfolio, config: RebalanceStrategyConfig, now: number): boolean {
+    const intervalDays = config.intervalDays ?? 7
+    const lastMs = new Date(portfolio.lastRebalance).getTime()
+    const intervalMs = intervalDays * 24 * 60 * 60 * 1000
+    return now - lastMs >= intervalMs
+}
+
+function volatilityStrategy(
+    portfolio: Portfolio,
+    prices: PricesMap,
+    config: RebalanceStrategyConfig,
+    _now: number
+): boolean {
+    const volatilityThresholdPct = config.volatilityThresholdPct ?? 10
+    const maxAbsChange = Math.max(
+        0,
+        ...Object.values(prices).map((p) => Math.abs((p as { change?: number }).change ?? 0))
+    )
+    if (maxAbsChange >= volatilityThresholdPct) return true
+    return thresholdStrategy(portfolio, prices)
+}
+
+function customStrategy(
+    portfolio: Portfolio,
+    prices: PricesMap,
+    config: RebalanceStrategyConfig,
+    now: number
+): boolean {
+    const minDays = config.minDaysBetweenRebalance ?? 1
+    const lastMs = new Date(portfolio.lastRebalance).getTime()
+    const minMs = minDays * 24 * 60 * 60 * 1000
+    if (now - lastMs < minMs) return false
+    return thresholdStrategy(portfolio, prices)
+}
+
+function dcaStrategy(
+    portfolio: Portfolio,
+    config: RebalanceStrategyConfig,
+    now: number
+): boolean {
+    const schedule = computeDcaSchedule(portfolio, config, now)
+    // A DCA buy requires a configured amount – nothing to buy otherwise.
+    if (schedule.amount <= 0) return false
+    return now >= schedule.nextBuyAtMs
+}
+
+/**
+ * Computes the scheduled DCA buy amount/interval and the next due timestamp
+ * from a portfolio's strategy config. Mirrors the contract-side DCA capability
+ * (`configure_dca` amount + interval) so the backend scheduler can trigger DCA
+ * executions on their own cadence.
+ */
+export function computeDcaSchedule(
+    portfolio: Portfolio,
+    config: RebalanceStrategyConfig,
+    _now?: number
+): DcaSchedule {
+    const intervalDays = config.dcaIntervalDays ?? config.intervalDays ?? 7
+    const intervalMs = intervalDays * 24 * 60 * 60 * 1000
+    const lastMs = new Date(portfolio.lastRebalance).getTime()
+    return {
+        intervalDays,
+        intervalMs,
+        amount: config.dcaAmount ?? 0,
+        nextBuyAtMs: lastMs + intervalMs,
+    }
+}
+
+export const REBALANCE_STRATEGIES: { value: RebalanceStrategyType; label: string; description: string }[] = [
+    { value: 'threshold', label: 'Threshold-based', description: 'Rebalance when allocation drift exceeds the configured threshold (%).' },
+    { value: 'periodic', label: 'Periodic (time-based)', description: 'Rebalance on a fixed schedule (e.g. every 7 or 30 days).' },
+    { value: 'volatility', label: 'Volatility-based', description: 'Rebalance when market volatility exceeds a percentage threshold.' },
+    { value: 'custom', label: 'Custom rules', description: 'User-defined: minimum days between rebalances plus threshold check.' },
+    { value: 'dca', label: 'Dollar Cost Averaging', description: 'Execute scheduled buys at fixed intervals regardless of market conditions.' },
+]
+
+export async function crossCheckRebalanceDecision(
+    context: RebalanceStrategyContext,
+    onChainCheck: () => Promise<boolean>,
+    config: CrossCheckConfig = { requireAgreement: false, alertOnDisagreement: true }
+): Promise<CrossCheckResult> {
+    const backendDecision = shouldRebalanceByStrategy(context)
+    
+    let onChainDecision: boolean
+    try {
+        onChainDecision = await onChainCheck()
+    } catch (error) {
+        logger.error('[CrossCheck] On-chain check failed, falling back to backend decision', {
+            portfolioId: context.portfolio.id,
+            error: error instanceof Error ? error.message : String(error),
+        })
+        return {
+            backendDecision,
+            onChainDecision: backendDecision,
+            agreement: true,
+            finalDecision: backendDecision,
+            warning: 'On-chain check failed, using backend decision',
+        }
+    }
+
+    const agreement = backendDecision === onChainDecision
+
+    if (!agreement && config.alertOnDisagreement) {
+        logger.warn('[CrossCheck] Backend and on-chain rebalance decisions disagree', {
+            portfolioId: context.portfolio.id,
+            backendDecision,
+            onChainDecision,
+            strategy: context.portfolio.strategy ?? 'threshold',
+        })
+    }
+
+    const finalDecision = config.requireAgreement ? (agreement && backendDecision) : backendDecision
+
+    return {
+        backendDecision,
+        onChainDecision,
+        agreement,
+        finalDecision,
+        warning: !agreement ? 'Backend and on-chain decisions disagree' : undefined,
+    }
+}

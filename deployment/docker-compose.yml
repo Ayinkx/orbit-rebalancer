@@ -1,0 +1,406 @@
+services:
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_SENTRY_ENABLED: ${VITE_SENTRY_ENABLED:-false}
+        VITE_SENTRY_DSN: ${VITE_SENTRY_DSN:-}
+        VITE_SENTRY_ENVIRONMENT: ${VITE_SENTRY_ENVIRONMENT:-production}
+        VITE_SENTRY_RELEASE: ${VITE_SENTRY_RELEASE:-}
+        VITE_SENTRY_TRACES_SAMPLE_RATE: ${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}
+        VITE_SENTRY_REPLAYS_SESSION_SAMPLE_RATE: ${VITE_SENTRY_REPLAYS_SESSION_SAMPLE_RATE:-0}
+        VITE_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE: ${VITE_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE:-1}
+    container_name: portfolio-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+    volumes:
+      - frontend_logs:/var/log/nginx
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:80/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: portfolio-backend
+    restart: unless-stopped
+    command: ["sh", "-c", "npm start 2>&1 | tee -a /app/logs/backend.log"]
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3001
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-CCQ4LISQJFTZJKQDRJHRLXQ2UML45GVXUECN5NGSQKAT55JKAK2JAX7I}
+      - REFLECTOR_ADDRESS=${REFLECTOR_ADDRESS:-CDSWUUXGPWDZG76ISK6SUCVPZJMD5YUV66J2FXFXFGDX25XKZJIEITAO}
+      - REFLECTOR_SERVICE_URL=${REFLECTOR_SERVICE_URL:-http://reflector-mock:8080}
+      - STELLAR_NETWORK=${STELLAR_NETWORK:-testnet}
+      - STELLAR_HORIZON_URL=${STELLAR_HORIZON_URL:-https://horizon-testnet.stellar.org}
+      - ENABLE_AUTO_REBALANCER=${ENABLE_AUTO_REBALANCER:-false}
+      - DEMO_MODE=${DEMO_MODE:-true}
+      - ALLOW_DEMO_BALANCE_FALLBACK=${ALLOW_DEMO_BALANCE_FALLBACK:-true}
+      - ALLOW_FALLBACK_PRICES=${ALLOW_FALLBACK_PRICES:-true}
+      - ENABLE_DEBUG_ROUTES=${ENABLE_DEBUG_ROUTES:-false}
+      - SENTRY_ENABLED=${SENTRY_ENABLED:-false}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
+      - SENTRY_RELEASE=${SENTRY_RELEASE:-}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.2}
+      - SENTRY_PROFILES_SAMPLE_RATE=${SENTRY_PROFILES_SAMPLE_RATE:-0.1}
+      - NEW_RELIC_ENABLED=${NEW_RELIC_ENABLED:-false}
+      - NEW_RELIC_APP_NAME=${NEW_RELIC_APP_NAME:-stellar-portfolio-backend}
+      - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY:-}
+      - NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=${NEW_RELIC_DISTRIBUTED_TRACING_ENABLED:-true}
+      - METRICS_ENABLED=${METRICS_ENABLED:-true}
+      - LOG_DEPLOYMENT_ENV=${LOG_DEPLOYMENT_ENV:-local}
+      - ALERT_CONTACT=${ALERT_CONTACT:-platform-oncall}
+      - DB_PATH=${DB_PATH:-/app/data/portfolio.db}
+      - DATABASE_URL=${DATABASE_URL:-}
+      - PGHOST=${PGHOST:-}
+      - PGPORT=${PGPORT:-5432}
+      - PGDATABASE=${PGDATABASE:-}
+      - PGUSER=${PGUSER:-}
+      - PGPASSWORD=${PGPASSWORD:-}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./logs:/app/logs
+      - backend_data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3001/ready', r => { r.resume(); process.exit(r.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  reflector-mock:
+    build:
+      context: ./reflector-mock
+      dockerfile: Dockerfile
+    container_name: portfolio-reflector-mock
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - MOCK_PRICE_XLM=${MOCK_PRICE_XLM:-0.354}
+      - MOCK_PRICE_BTC=${MOCK_PRICE_BTC:-110000}
+      - MOCK_PRICE_ETH=${MOCK_PRICE_ETH:-4200}
+      - MOCK_PRICE_USDC=${MOCK_PRICE_USDC:-1.0}
+      - ENABLE_RANDOMIZATION=${ENABLE_RANDOMIZATION:-false}
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 3s
+
+  redis:
+    image: redis:7-alpine
+    container_name: portfolio-redis
+    restart: unless-stopped
+    profiles:
+      - full-stack
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    # Health check retries up to ~30s before marking unhealthy.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: portfolio-postgres
+    restart: unless-stopped
+    profiles:
+      - full-stack
+    environment:
+      - POSTGRES_DB=portfolio
+      - POSTGRES_USER=portfolio
+      - POSTGRES_PASSWORD=portfolio
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Health check retries up to ~40s before marking unhealthy.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolio -d portfolio"]
+      interval: 5s
+      timeout: 5s
+      retries: 8
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  monitoring:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: portfolio-monitoring
+    restart: unless-stopped
+    profiles:
+      - observability
+    command: ["node", "dist/index.js"]
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3002
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS:-CCQ4LISQJFTZJKQDRJHRLXQ2UML45GVXUECN5NGSQKAT55JKAK2JAX7I}
+      - STELLAR_NETWORK=${STELLAR_NETWORK:-testnet}
+      - STELLAR_HORIZON_URL=${STELLAR_HORIZON_URL:-https://horizon-testnet.stellar.org}
+      - DEMO_MODE=${DEMO_MODE:-true}
+      - ALLOW_DEMO_BALANCE_FALLBACK=${ALLOW_DEMO_BALANCE_FALLBACK:-true}
+      - ALLOW_FALLBACK_PRICES=${ALLOW_FALLBACK_PRICES:-true}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: portfolio-prometheus
+    restart: unless-stopped
+    profiles:
+      - observability
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+      - alertmanager
+      - blackbox-exporter
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: portfolio-alertmanager
+    restart: unless-stopped
+    profiles:
+      - observability
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./observability/alertmanager/oncall-secrets:/etc/alertmanager/secrets:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: portfolio-grafana
+    restart: unless-stopped
+    profiles:
+      - observability
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3003:3000"
+    depends_on:
+      - prometheus
+      - loki
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: portfolio-loki
+    restart: unless-stopped
+    profiles:
+      - observability
+    command: ["-config.file=/etc/loki/loki-config.yml"]
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    container_name: portfolio-promtail
+    restart: unless-stopped
+    profiles:
+      - observability
+    command: ["-config.file=/etc/promtail/promtail-config.yml"]
+    volumes:
+      - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - ./logs:/var/log/portfolio-backend:ro
+      - frontend_logs:/var/log/portfolio-frontend:ro
+    depends_on:
+      - loki
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: portfolio-blackbox
+    restart: unless-stopped
+    profiles:
+      - observability
+    volumes:
+      - ./observability/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+    ports:
+      - "9115:9115"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+
+  # Jaeger — OpenTelemetry trace collector and UI.
+  # Start with: docker compose --profile observability up
+  # Access Jaeger UI at http://localhost:16686
+  # OTLP HTTP endpoint at http://localhost:4318 for backend tracing.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: portfolio-jaeger
+    restart: unless-stopped
+    profiles:
+      - observability
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_OTLP_HTTP_PORT=4318
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Self-hosted Umami analytics — privacy-respecting, cookie-free.
+  # Start with: docker compose --profile analytics up
+  # Access dashboard at http://localhost:3004 (default login: admin / umami)
+  # After first login, create a website and set the site ID in VITE_ANALYTICS_SITE_ID.
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    container_name: portfolio-umami
+    restart: unless-stopped
+    profiles:
+      - analytics
+    environment:
+      - DATABASE_URL=postgresql://umami:umami@umami-db:5432/umami
+      - DATABASE_TYPE=postgresql
+      - APP_SECRET=${UMAMI_APP_SECRET:-change-me-in-production}
+    ports:
+      - "3004:3000"
+    depends_on:
+      - umami-db
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  umami-db:
+    image: postgres:15-alpine
+    container_name: portfolio-umami-db
+    restart: unless-stopped
+    profiles:
+      - analytics
+    environment:
+      - POSTGRES_DB=umami
+      - POSTGRES_USER=umami
+      - POSTGRES_PASSWORD=umami
+    volumes:
+      - umami_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 5s
+      timeout: 5s
+      retries: 8
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+volumes:
+  backend_data:
+  redis_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  alertmanager_data:
+  frontend_logs:
+  umami_data:
+
+networks:
+  default:
+    name: portfolio-network

@@ -1,0 +1,1641 @@
+
+
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion"; // AnimatePresence added to animate error messages in/out
+// TanStack Query Mutations
+import {
+  buildRollbackMessage,
+  useCreatePortfolioMutation,
+} from "../hooks/mutations/usePortfolioMutations";
+import {
+  Plus,
+  Trash2,
+  ArrowLeft,
+  AlertCircle,
+  CheckCircle,
+  Save,
+  User,
+  RefreshCw,
+  RotateCcw,
+  X,
+} from "lucide-react";
+
+import ThemeToggle from "./ThemeToggle";
+import AssetSelector from "./AssetSelector"; // NEW: Enhanced asset selector with search
+import { percentageToBps } from "../utils/calculations";
+import BulkPortfolioImport from "./BulkPortfolioImport";
+import { useAssets } from "../hooks/queries/useAssetsQuery";
+import {
+  loadPortfolioSetupDraft,
+  savePortfolioSetupDraft,
+  clearPortfolioSetupDraft,
+  type PortfolioSetupDraft,
+} from "../hooks/usePortfolio";
+import {
+  loadPortfolioCloneDraft,
+  clearPortfolioCloneDraft,
+  type PortfolioCloneDraft,
+} from "../utils/portfolioCloneDraft";
+
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+
+
+interface PortfolioSetupProps {
+  onNavigate: (view: string) => void
+  publicKey: string | null
+}
+
+interface Allocation {
+  asset: string
+  percentage: number
+}
+
+export type RiskLevel = 'low' | 'medium' | 'high'
+
+export interface PortfolioTemplate {
+  id: string
+  name: string
+  description: string
+  riskLevel: RiskLevel
+  allocations: Allocation[]
+}
+
+export const PORTFOLIO_TEMPLATES: PortfolioTemplate[] = [
+  {
+    id: "conservative",
+    name: "Conservative",
+    description:
+      "Heavy on stablecoins and XLM. Lower volatility, capital preservation focus.",
+    riskLevel: "low",
+    allocations: [
+      { asset: 'USDC', percentage: 60 },
+      { asset: 'XLM', percentage: 30 },
+      { asset: 'BTC', percentage: 10 },
+    ],
+  },
+  {
+    id: "balanced",
+    name: "Balanced",
+    description:
+      "Mix of stablecoins and crypto. Moderate risk with growth potential.",
+    riskLevel: "medium",
+    allocations: [
+      { asset: 'USDC', percentage: 40 },
+      { asset: 'XLM', percentage: 30 },
+      { asset: 'BTC', percentage: 20 },
+      { asset: 'ETH', percentage: 10 },
+    ],
+  },
+  {
+    id: 'aggressive',
+    name: 'Aggressive',
+    description: 'Crypto-heavy for maximum growth. Higher volatility and risk.',
+    riskLevel: 'high',
+    allocations: [
+      { asset: 'BTC', percentage: 50 },
+      { asset: 'ETH', percentage: 30 },
+      { asset: 'XLM', percentage: 20 },
+    ],
+  },
+  {
+    id: "stablecoin-focus",
+    name: "Stablecoin Focus",
+    description:
+      "Mostly USDC with some XLM. Minimal exposure to crypto volatility.",
+    riskLevel: "low",
+    allocations: [
+      { asset: 'USDC', percentage: 80 },
+      { asset: 'XLM', percentage: 20 },
+    ],
+  },
+  {
+    id: "custom",
+    name: "Custom",
+    description:
+      "Define your own allocation. Start from scratch and add assets.",
+    riskLevel: "medium",
+    allocations: [{ asset: "XLM", percentage: 100 }],
+  },
+]
+
+const SAVED_TEMPLATES_KEY = (userId: string) =>
+  `portfolio-templates-${userId || "anonymous"}`;
+
+function loadSavedTemplates(userId: string): PortfolioTemplate[] {
+  try {
+    const raw = localStorage.getItem(SAVED_TEMPLATES_KEY(userId))
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as PortfolioTemplate[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function saveSavedTemplates(
+  userId: string,
+  templates: PortfolioTemplate[],
+): void {
+  localStorage.setItem(SAVED_TEMPLATES_KEY(userId), JSON.stringify(templates));
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+const PortfolioSetup: React.FC<PortfolioSetupProps> = ({
+  onNavigate,
+  publicKey,
+}) => {
+  // ── State ──────────────────────────────────────────────────────────────────
+
+  const [allocations, setAllocations] = useState<Allocation[]>(() => {
+    const balanced = PORTFOLIO_TEMPLATES.find((t) => t.id === "balanced");
+    return balanced
+      ? balanced.allocations.map((a) => ({ ...a }))
+      : [{ asset: "XLM", percentage: 40 }];
+  });
+  const [threshold, setThreshold] = useState(5);
+  const [slippageTolerance, setSlippageTolerance] = useState(1);
+  const [strategy, setStrategy] = useState<string>("threshold");
+  const [strategyConfig, setStrategyConfig] = useState<Record<string, number>>(
+    {},
+  );
+  const [autoRebalance, setAutoRebalance] = useState(true);
+  const [error, setError] = useState<string | null>(null); // submit-level error message
+  const [success, setSuccess] = useState(false); // shows success banner after creation
+  const [isDemoMode] = useState(true); // demo mode: skips real wallet requirement
+  const [selectedTemplateId, setSelectedTemplateId] =
+    useState<string>("balanced");
+  const [savedTemplates, setSavedTemplates] = useState<PortfolioTemplate[]>(
+    () => loadSavedTemplates(publicKey || ""),
+  );
+  const [cloneDraft, setCloneDraft] = useState<PortfolioCloneDraft | null>(() =>
+    loadPortfolioCloneDraft(),
+  );
+  const [entryMode, setEntryMode] = useState<'manual' | 'bulk'>('manual');
+
+  const [pendingDraft, setPendingDraft] = useState<PortfolioSetupDraft | null>(
+    () => {
+      const result = loadPortfolioSetupDraft(publicKey);
+      return result.status === 'loaded' ? result.draft : null;
+    },
+  );
+  const [draftError, setDraftError] = useState<string | null>(() => {
+    const result = loadPortfolioSetupDraft(publicKey);
+    return result.status === 'failed' ? result.error : null;
+  });
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftPromptResolved, setDraftPromptResolved] = useState(
+    () => loadPortfolioSetupDraft(publicKey).status !== 'loaded',
+  );
+  const hasMountedDraftSaver = useRef(false);
+
+
+
+  useEffect(() => {
+    if (!draftPromptResolved) return
+
+    if (!hasMountedDraftSaver.current) {
+      hasMountedDraftSaver.current = true
+      return
+    }
+
+    const result = savePortfolioSetupDraft(publicKey, {
+      allocations: allocations.map((allocation) => ({ ...allocation })),
+      threshold,
+      slippageTolerance,
+      strategy,
+      strategyConfig,
+      autoRebalance,
+      selectedTemplateId,
+    })
+
+    setDraftError(
+      result.status === 'failed'
+        ? 'We could not save your draft locally. Your current inputs remain on this page only.'
+        : null,
+    )
+    setDraftRestored(false)
+  }, [
+    allocations,
+    threshold,
+    slippageTolerance,
+    strategy,
+    strategyConfig,
+    autoRebalance,
+    selectedTemplateId,
+    publicKey,
+    draftPromptResolved,
+  ])
+
+  const restoreDraft = () => {
+    if (!pendingDraft) return
+    setAllocations(
+      pendingDraft.allocations.map((allocation) => ({ ...allocation })),
+    )
+    setThreshold(pendingDraft.threshold)
+    setSlippageTolerance(pendingDraft.slippageTolerance)
+    setStrategy(pendingDraft.strategy)
+    setStrategyConfig({ ...pendingDraft.strategyConfig })
+    setAutoRebalance(pendingDraft.autoRebalance)
+    setSelectedTemplateId(pendingDraft.selectedTemplateId)
+    setPendingDraft(null)
+    setDraftError(null)
+    setDraftRestored(true)
+    setDraftPromptResolved(true)
+    hasMountedDraftSaver.current = true
+  }
+
+  const discardDraft = () => {
+    const result = clearPortfolioSetupDraft(publicKey)
+    setPendingDraft(null)
+    setDraftRestored(false)
+    setDraftPromptResolved(true)
+    setDraftError(result.status === 'failed' ? result.error : null)
+    hasMountedDraftSaver.current = false
+  }
+
+  const formatDraftSavedAt = (savedAt: string): string => {
+    const savedDate = new Date(savedAt)
+    if (Number.isNaN(savedDate.getTime())) return 'a previous visit'
+    return savedDate.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  }
+
+  useEffect(() => {
+    const draft = loadPortfolioCloneDraft();
+    if (!draft) return
+
+    setCloneDraft(draft);
+    setAllocations(draft.allocations.map((row) => ({ ...row })));
+    setThreshold(draft.threshold);
+    setSlippageTolerance(draft.slippageTolerance);
+    setStrategy(draft.strategy || "threshold");
+    setStrategyConfig(draft.strategyConfig ?? {});
+    setSelectedTemplateId("custom");
+  }, []);
+
+  const getRiskLevelLabel = (level: RiskLevel): string => {
+    switch (level) {
+      case "low":
+        return "Low risk";
+      case "medium":
+        return "Medium risk";
+      case "high":
+        return "High risk";
+      default:
+        return "Risk";
+    }
+  }
+
+  const getRiskLevelClass = (level: RiskLevel): string => {
+    switch (level) {
+      case "low":
+        return "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300";
+      case "medium":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300";
+      case "high":
+        return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
+    }
+  }
+  // Mutation for portfolio creation
+  const createPortfolioMutation = useCreatePortfolioMutation()
+  const { data: selectableAssets = [], isLoading: assetsLoading } = useAssets()
+
+ 
+  const getAllocationError = (percentage: number): string | null => {
+    if (percentage < 0) return 'Cannot be negative'
+    if (percentage > 100) return 'Cannot exceed 100%'
+    return null
+  }
+
+  /** Sum of all current allocation percentages */
+  const totalPercentage = allocations.reduce(
+    (sum, alloc) => sum + alloc.percentage,
+    0,
+  )
+
+ 
+  const isValidTotal = Math.abs(totalPercentage - 100) < 0.01
+
+  /**
+   * Signed deviation from 100%, rounded to 1 decimal place.
+   * Positive = over-allocated (e.g. +5 means 105% total)
+   * Negative = under-allocated (e.g. -10 means 90% total)
+   */
+  const deviation = parseFloat((totalPercentage - 100).toFixed(2))
+
+  /**
+   * Builds the real-time summary message shown below the allocation list.
+   * Returns an object with the message text and a semantic type used to set the colour:
+   *   'success' → green  (total is exactly 100%)
+   *   'error'   → red    (total is over 100%)
+   *   'warning' → yellow (total is under 100%)
+   */
+  const totalDeviationMessage = (): {
+    text: string
+    type: 'error' | 'warning' | 'success'
+  } | null => {
+    if (isValidTotal)
+      return { text: 'Allocations sum to 100% ✓', type: 'success' }
+    if (deviation > 0)
+      return {
+        text: `${deviation}% over — reduce allocations by ${deviation}%`,
+        type: 'error',
+      }
+    return {
+      text: `${Math.abs(deviation)}% under — add ${Math.abs(deviation)}% more`,
+      type: 'warning',
+    }
+  }
+
+  const getThresholdError = (val: number | undefined): string | null => {
+    if (val === undefined || Number.isNaN(val)) return 'Threshold is required'
+    if (val < 1 || val > 50) return 'Threshold must be between 1% and 50%'
+    return null
+  }
+
+  const getIntervalDaysError = (val: number | undefined): string | null => {
+    if (val === undefined || Number.isNaN(val)) return 'Interval is required'
+    if (val < 1 || val > 365) return 'Interval must be between 1 and 365 days'
+    return null
+  }
+
+  const getVolatilityThresholdError = (val: number | undefined): string | null => {
+    if (val === undefined || Number.isNaN(val)) return 'Volatility threshold is required'
+    if (val < 1 || val > 100) return 'Volatility threshold must be between 1% and 100%'
+    return null
+  }
+
+  const getMinDaysBetweenRebalanceError = (val: number | undefined): string | null => {
+    if (val === undefined || Number.isNaN(val)) return 'Minimum days is required'
+    if (val < 0 || val > 365) return 'Minimum days must be between 0 and 365 days'
+    return null
+  }
+
+  const thresholdError = strategy !== 'periodic' ? getThresholdError(threshold) : null;
+
+  const intervalDaysError = strategy === 'periodic'
+    ? getIntervalDaysError(strategyConfig.intervalDays)
+    : null;
+
+  const volatilityThresholdPctError = strategy === 'volatility'
+    ? getVolatilityThresholdError(strategyConfig.volatilityThresholdPct)
+    : null;
+
+  const minDaysBetweenRebalanceError = strategy === 'custom'
+    ? getMinDaysBetweenRebalanceError(strategyConfig.minDaysBetweenRebalance)
+    : null;
+
+  const hasStrategyConfigError = !!(
+    intervalDaysError ||
+    volatilityThresholdPctError ||
+    minDaysBetweenRebalanceError ||
+    thresholdError
+  );
+
+  /**
+   * True if any individual allocation row has a validation error.
+   * Used alongside isValidTotal to gate the submit button —
+   * both must pass before the form can be submitted.
+   */
+  const hasAnyFieldError = allocations.some(
+    (a) => getAllocationError(a.percentage) !== null,
+  ) || hasStrategyConfigError;
+
+  /** Remaining percentage to reach 100% (positive = under, negative = over, 0 = exact) */
+  const remainingAllocation = (rows: Allocation[]): number =>
+    parseFloat(
+      (100 - rows.reduce((sum, alloc) => sum + alloc.percentage, 0)).toFixed(2),
+    );
+  const remaining = remainingAllocation(allocations);
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
+  /** Adds a new allocation row using the first asset not already in the list */
+  const addAllocation = () => {
+    const unusedAssets = selectableAssets.filter(
+      (asset) => !allocations.some((alloc) => alloc.asset === asset.symbol),
+    )
+    if (unusedAssets.length > 0) {
+      setAllocations([
+        ...allocations,
+        { asset: unusedAssets[0].symbol, percentage: 0 },
+      ])
+    }
+  }
+
+  /** Removes the allocation row at the given index. Always keeps at least one row. */
+  const removeAllocation = (index: number) => {
+    if (allocations.length > 1) {
+      setAllocations(allocations.filter((_, i) => i !== index))
+    }
+  }
+
+  /** Updates either the asset or percentage field for a specific allocation row */
+  const updateAllocation = (
+    index: number,
+    field: 'asset' | 'percentage',
+    value: string | number,
+  ) => {
+    const updated = [...allocations]
+    updated[index] = { ...updated[index], [field]: value }
+    setAllocations(updated)
+  }
+
+  /** Replaces the current allocation list with a template. User can modify before creating. */
+  const applyTemplate = (template: PortfolioTemplate) => {
+    setSelectedTemplateId(template.id)
+    setAllocations(template.allocations.map((a) => ({ ...a })))
+  }
+
+  const saveCurrentAsTemplate = () => {
+    const name = window.prompt('Template name', 'My custom template')
+    if (!name?.trim()) return
+    if (!isValidTotal || hasAnyFieldError) return
+    const custom: PortfolioTemplate = {
+      id: `saved-${Date.now()}`,
+      name: name.trim(),
+      description: 'Saved by you. Modify and use as a starting point.',
+      riskLevel: 'medium',
+      allocations: allocations.map((a) => ({ ...a })),
+    }
+    const userId = publicKey || ''
+    const next = [...savedTemplates, custom]
+    setSavedTemplates(next)
+    saveSavedTemplates(userId, next)
+    setSelectedTemplateId(custom.id)
+  }
+
+  const removeSavedTemplate = (id: string) => {
+    if (!window.confirm('Remove this saved template?')) return
+    const userId = publicKey || ''
+    const next = savedTemplates.filter((t) => t.id !== id)
+    setSavedTemplates(next)
+    saveSavedTemplates(userId, next)
+    if (selectedTemplateId === id) {
+      setSelectedTemplateId('custom')
+      setAllocations([{ asset: 'XLM', percentage: 100 }])
+    }
+  }
+
+  /**
+   * Submits the portfolio to the API.
+   *
+   * Guards (in order):
+   *   1. Total must equal 100% and no field can be out of range
+   *   2. In non-demo mode, a connected wallet public key is required
+   *
+   * On success → shows banner, then navigates to the dashboard after 2 seconds.
+   * On failure → shows the API error message or a generic network fallback.
+   */
+  const createPortfolio = async () => {
+    // Block submission if any validation check has not passed
+    if (!isValidTotal || hasAnyFieldError) {
+      setError('Please fix validation errors before submitting')
+      return
+    }
+
+    // Block submission if no wallet is connected (skipped in demo mode)
+    if (!publicKey && !isDemoMode) {
+      setError('Please connect your wallet first')
+      return
+    }
+
+    setError(null)
+
+    try {
+      const allocationsMap = allocations.reduce(
+        (acc, alloc) => {
+          acc[alloc.asset] = percentageToBps(alloc.percentage)
+          return acc
+        },
+        {} as Record<string, number>,
+      )
+
+      let finalStrategyConfig: Record<string, number> | undefined = undefined;
+      if (strategy === 'periodic') {
+        finalStrategyConfig = {
+          intervalDays: strategyConfig.intervalDays ?? 7,
+        };
+      } else if (strategy === 'volatility') {
+        finalStrategyConfig = {
+          volatilityThresholdPct: strategyConfig.volatilityThresholdPct ?? 10,
+        };
+      } else if (strategy === 'custom') {
+        finalStrategyConfig = {
+          minDaysBetweenRebalance: strategyConfig.minDaysBetweenRebalance ?? 1,
+        };
+      }
+
+      await createPortfolioMutation.mutateAsync({
+        userAddress: publicKey || 'demo-user',
+        allocations: allocationsMap,
+        threshold: strategy === 'periodic' && getThresholdError(threshold) ? 5 : threshold,
+        slippageTolerance,
+        strategy: strategy || 'threshold',
+        strategyConfig: finalStrategyConfig,
+      })
+
+      clearPortfolioSetupDraft(publicKey)
+      setPendingDraft(null)
+      setDraftPromptResolved(true)
+      setSuccess(true)
+      setTimeout(() => onNavigate('dashboard'), 2000)
+      clearPortfolioCloneDraft();
+      setCloneDraft(null);
+    } catch (err) {
+      setError(buildRollbackMessage(err, "portfolio creation"));
+    }
+  }
+
+  // Compute once before render so the value is consistent across the JSX tree
+  const totalStatus = totalDeviationMessage();
+
+  const handleBulkImportSuccess = (_portfolioId: string) => {
+    setSuccess(true)
+    setTimeout(() => {
+      onNavigate('dashboard')
+    }, 2000)
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-6 sm:py-8">
+      <div className="max-w-4xl mx-auto px-3 sm:px-6">
+        {/* ── Page header with back navigation ── */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 sm:mb-8 min-w-0">
+          <div className="flex items-center min-w-0">
+            <button
+              onClick={() => onNavigate('dashboard')}
+              className="mr-2 sm:mr-4 p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors flex-shrink-0"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white break-words">
+                Create Portfolio
+              </h1>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1 break-words">
+                Set up your automated rebalancing strategy
+              </p>
+            </div>
+          </div>
+          <ThemeToggle />
+        </div>
+
+        {/* ── Wallet connection status ── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-sm mb-6 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Wallet Status
+            </h3>
+            {publicKey ? (
+              <span className="px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                Live Wallet
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded text-xs font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                Demo Mode Active (Simulated)
+              </span>
+            )}
+          </div>
+          {publicKey ? (
+            /* Connected: show a truncated public key for confirmation */
+            <div className="flex items-center text-green-600 break-all">
+              <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+              <span>
+                Connected: {publicKey.slice(0, 8)}...{publicKey.slice(-8)}
+              </span>
+            </div>
+          ) : (
+            /* Not connected: indicate that demo mode is active instead */
+            <div className="flex flex-wrap items-center text-yellow-600 dark:text-yellow-400 gap-2">
+              <div className="flex items-center">
+                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                <span className="font-medium">Demo Mode Active</span>
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                (Real wallet balances not affected)
+              </span>
+            </div>
+          )}
+        </div>
+
+        {cloneDraft ? (
+          <div className="bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4 mb-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h4 className="text-indigo-900 dark:text-indigo-200 font-medium">
+                  Cloning portfolio {cloneDraft.sourceLabel ?? cloneDraft.sourcePortfolioId}
+                </h4>
+                <p className="text-indigo-800 dark:text-indigo-300 text-sm mt-1">
+                  Allocations and rebalance settings are pre-filled. Saving creates a new portfolio and does not change the original.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  clearPortfolioCloneDraft();
+                  setCloneDraft(null);
+                }}
+                className="self-start rounded-lg border border-indigo-300 dark:border-indigo-700 px-3 py-2 text-sm text-indigo-900 dark:text-indigo-100 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+              >
+                Discard clone
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {/* ── Demo mode information banner ── */}
+        {isDemoMode && (
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 sm:p-4 mb-6 min-w-0">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <div className="text-blue-600 dark:text-blue-400 flex-shrink-0 text-base">ℹ️</div>
+              <div className="min-w-0">
+                <h4 className="text-blue-800 dark:text-blue-300 font-medium break-words">
+                  Demo Mode
+                </h4>
+                <p className="text-blue-700 dark:text-blue-400 text-sm break-words">
+                  Using simulated $10,000 portfolio with real price data.
+                  Perfect for testing and demonstrations. Real funds are never traded.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Entry Mode Tabs: Manual vs Bulk Import ── */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-6">
+          <div className="flex border-b border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setEntryMode('manual')}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                entryMode === 'manual'
+                  ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              Manual Entry
+            </button>
+            <button
+              onClick={() => setEntryMode('bulk')}
+              className={`px-4 py-2 text-sm font-medium transition-colors ${
+                entryMode === 'bulk'
+                  ? 'border-b-2 border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              Bulk Import (CSV/JSON)
+            </button>
+          </div>
+        </div>
+
+        {/* ── Bulk Import Tab Content ── */}
+        {entryMode === 'bulk' && (
+          <BulkPortfolioImport
+            userAddressForDemo={publicKey}
+            onImported={handleBulkImportSuccess}
+          />
+        )}
+
+        {/* ── Manual Entry Tab Content ── */}
+        {entryMode === 'manual' && (
+          <>
+
+        {/* ── Local draft restore prompt ── */}
+        {pendingDraft && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-4 mb-6"
+            role="region"
+            aria-labelledby="portfolio-draft-title"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start text-amber-900 dark:text-amber-100">
+                <Save className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" />
+                <div>
+                  <h2 id="portfolio-draft-title" className="font-semibold">
+                    Resume saved portfolio draft?
+                  </h2>
+                  <p className="text-sm text-amber-800 dark:text-amber-200 mt-1">
+                    We found unfinished setup inputs saved locally from{' '}
+                    {formatDraftSavedAt(pendingDraft.savedAt)}. Restore them
+                    only if you want to continue that draft on this device.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 sm:ml-4">
+                <button
+                  type="button"
+                  onClick={restoreDraft}
+                  className="inline-flex items-center justify-center px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4 mr-1" />
+                  Restore draft
+                </button>
+                <button
+                  type="button"
+                  onClick={discardDraft}
+                  className="inline-flex items-center justify-center px-3 py-2 border border-amber-300 dark:border-amber-600 text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-sm font-medium rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Start fresh
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {draftRestored && (
+          <div
+            className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg p-4 mb-6"
+            role="status"
+          >
+            <div className="flex items-center text-green-800 dark:text-green-200">
+              <CheckCircle className="w-5 h-5 mr-2" />
+              <span>
+                Draft restored. Changes will keep saving locally until you
+                create the portfolio or start fresh.
+              </span>
+            </div>
+          </div>
+        )}
+
+        {draftError && (
+          <div
+            className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg p-4 mb-6"
+            role="alert"
+          >
+            <div className="flex items-center text-red-800 dark:text-red-200">
+              <AlertCircle className="w-5 h-5 mr-2" />
+              <span>{draftError}</span>
+            </div>
+          </div>
+        )}
+
+        {/* ── Success banner — shown after portfolio is created ── */}
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            role="status"
+            aria-live="polite"
+            className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6"
+          >
+            <div className="flex items-center text-green-800">
+              <CheckCircle className="w-5 h-5 mr-2" />
+              <span>
+                Portfolio created successfully! Redirecting to dashboard...
+              </span>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Submit-level error banner — shown when the API call fails or a guard blocks submit ── */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            role="alert"
+            aria-live="assertive"
+            className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6"
+          >
+            <div className="flex items-center text-red-800">
+              <AlertCircle className="w-5 h-5 mr-2" />
+              <span>{error}</span>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── First-time user quick-start / empty state ── */}
+        {savedTemplates.length === 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-6">
+            <div className="flex items-start">
+              <div className="flex-1">
+                <h4 className="text-md font-semibold text-gray-900 dark:text-white">Quick start</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  New here? Try a template to populate allocations, or learn how to set up a portfolio.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => applyTemplate(PORTFOLIO_TEMPLATES.find(t => t.id === 'balanced')!)}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                  >
+                    Try Balanced Template
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.open('/docs/DEMO_WALKTHROUGH.md', '_blank')}
+                    className="px-3 py-1 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm rounded-lg"
+                  >
+                    Read setup guide
+                  </button>
+                  {!publicKey && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('landing')}
+                      className="px-3 py-1 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm rounded-lg"
+                    >
+                      Connect wallet
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Main two-column layout ── */}
+        <div className="grid lg:grid-cols-2 gap-8">
+          {/* ════ Left column: configuration inputs ════ */}
+          <div className="space-y-6">
+            {/* ── Template selector: presets with descriptions and risk levels ── */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Choose a template
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Start from a preset or custom. You can modify allocations below
+                before creating.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {PORTFOLIO_TEMPLATES.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => applyTemplate(template)}
+                    className={`p-4 text-left rounded-lg border-2 transition-colors ${
+                      selectedTemplateId === template.id
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400'
+                        : 'border-gray-200 dark:border-gray-600 bg-gray-50 hover:bg-gray-100 dark:bg-gray-700 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    <div className="font-semibold text-gray-900 dark:text-white">
+                      {template.name}
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                      {template.description}
+                    </p>
+                    <span
+                      className={`inline-block mt-2 px-2 py-0.5 rounded text-xs font-medium ${getRiskLevelClass(
+                        template.riskLevel,
+                      )}`}
+                    >
+                      {getRiskLevelLabel(template.riskLevel)}
+                    </span>
+                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      {template.allocations.length} asset
+                      {template.allocations.length !== 1 ? "s" : ""}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              {savedTemplates.length > 0 && (
+                <>
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mt-4 mb-2 flex items-center">
+                    <User className="w-4 h-4 mr-1" />
+                    My saved templates
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {savedTemplates.map((template) => (
+                      <div
+                        key={template.id}
+                        className={`p-4 rounded-lg border-2 flex flex-col ${
+                          selectedTemplateId === template.id
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400'
+                            : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <button
+                            type="button"
+                            onClick={() => applyTemplate(template)}
+                            className="text-left flex-1"
+                          >
+                            <div className="font-semibold text-gray-900 dark:text-white">
+                              {template.name}
+                            </div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-1">
+                              {template.description}
+                            </p>
+                            <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                              {template.allocations.length} asset
+                              {template.allocations.length !== 1 ? "s" : ""}
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removeSavedTemplate(template.id)
+                            }}
+                            className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
+                            title="Remove template"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {isValidTotal && !hasAnyFieldError && (
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    type="button"
+                    onClick={saveCurrentAsTemplate}
+                    className="flex items-center px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
+                  >
+                    <Save className="w-4 h-4 mr-1" />
+                    Save current allocation as my template
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Asset allocation rows with inline validation ── */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Asset Allocations
+                </h3>
+                {/* Disabled once all supported assets have been added */}
+                <button
+                  type="button"
+                  onClick={addAllocation}
+                  disabled={
+                    assetsLoading ||
+                    allocations.length >= selectableAssets.length
+                  }
+                  className="flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Asset
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {allocations.map((allocation, index) => {
+                  // Evaluate per-row validation on every render so errors update instantly
+                  const fieldError = getAllocationError(allocation.percentage)
+
+                  return (
+                    /*
+                     * Outer div wraps the input row AND its error message together
+                     * so the error sits directly beneath its own row without
+                     * affecting the spacing or alignment of adjacent rows.
+                     */
+                    <div key={index}>
+                      {/*
+                       * items-start (not items-center) keeps the delete button pinned
+                       * to the top of the row so it doesn't jump when an error
+                       * message adds height below the inputs.
+                       */}
+                      <div className="flex flex-col sm:flex-row sm:items-start space-y-3 sm:space-y-0 sm:space-x-3">
+                        {/* Asset selector with enhanced search and issuer info */}
+                        <div className="flex-1 min-w-0">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Asset
+                          </label>
+                          <AssetSelector
+                            value={allocation.asset}
+                            onChange={(asset) =>
+                              updateAllocation(index, "asset", asset)
+                            }
+                            placeholder="Select asset..."
+                            className="w-full"
+                          />
+                        </div>
+
+                        {/* Percentage input — border and background turn red when invalid */}
+                        <div className="w-full sm:w-28">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Percentage
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={allocation.percentage}
+                            onChange={(e) =>
+                              updateAllocation(
+                                index,
+                                'percentage',
+                                Number.isFinite(Number.parseFloat(e.target.value))
+                                  ? Number(Number.parseFloat(e.target.value).toFixed(2))
+                                  : 0,
+                              )
+                            }
+                            // Marks the field as invalid for screen readers
+                            aria-invalid={!!fieldError}
+                            // Links this input to its error paragraph for screen readers
+                            aria-describedby={
+                              fieldError ? `alloc-error-${index}` : undefined
+                            }
+                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                              fieldError
+                                ? 'border-red-500 focus:ring-red-400 bg-red-50 dark:bg-red-900/30' // invalid
+                                : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500' // default
+                            }`}
+                          />
+                        </div>
+
+                        {/* Delete button — hidden when only one row remains to prevent empty state */}
+                        {allocations.length > 1 && (
+                          <button
+                            type="button"
+                            aria-label={`Remove ${allocation.asset} allocation`}
+                            onClick={() => removeAllocation(index)}
+                            className="mt-6 sm:mt-6 p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors self-start"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/*
+                       * Per-field inline error message.
+                       *
+                       * AnimatePresence animates the paragraph in (height 0 → auto, opacity 0 → 1)
+                       * and back out (height auto → 0, opacity 1 → 0) so the layout adjusts
+                       * smoothly rather than snapping open or closed.
+                       *
+                       * role="alert" ensures screen readers announce the message immediately
+                       * when it appears, without waiting for focus to move to the element.
+                       */}
+                      <AnimatePresence>
+                        {fieldError && (
+                          <motion.p
+                            id={`alloc-error-${index}`} // referenced by aria-describedby above
+                            role="alert"
+                            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                            animate={{
+                              opacity: 1,
+                              height: 'auto',
+                              marginTop: 4,
+                            }}
+                            exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="flex items-center text-xs text-red-600 pl-1"
+                          >
+                            <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                            {fieldError}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* ── Real-time total allocation summary ── */}
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                {/* Numeric total with colour indicating validity */}
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Total Allocation:
+                  </span>
+                  <span
+                    className={`font-semibold tabular-nums ${
+                      isValidTotal
+                        ? 'text-green-600' // exactly 100%
+                        : deviation > 0
+                          ? 'text-red-600' // over 100%
+                          : 'text-yellow-600' // under 100%
+                    }`}
+                  >
+                    {totalPercentage.toFixed(2)}%
+                  </span>
+                </div>
+
+                {/* ── Remaining-allocation progress bar ── */}
+                <div
+                  className="w-full h-2 rounded-full bg-gray-200 dark:bg-gray-600 overflow-hidden mb-2"
+                  role="progressbar"
+                  aria-valuenow={Math.min(totalPercentage, 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`${totalPercentage.toFixed(2)}% of 100% allocated`}
+                >
+                  <div
+                    className={`h-full rounded-full transition-all duration-200 ${
+                      isValidTotal
+                        ? "bg-green-500"
+                        : deviation > 0
+                          ? "bg-red-500"
+                          : "bg-yellow-400"
+                    }`}
+                    style={{ width: `${Math.min(totalPercentage, 100)}%` }}
+                  />
+                </div>
+
+                {/* Remaining label */}
+                {!isValidTotal && (
+                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    <span>Remaining:</span>
+                    <span className={remaining > 0 ? "text-yellow-600" : "text-red-600"}>
+                      {remaining > 0 ? `+${remaining.toFixed(2)}%` : `${remaining.toFixed(2)}%`}
+                    </span>
+                  </div>
+                )}
+
+                {/*
+                 * Deviation guidance text — updates in real time as the user types.
+                 *
+                 * mode="wait" ensures the exiting message fully disappears before the
+                 * entering message appears, preventing two messages overlapping mid-transition.
+                 *
+                 * key={totalStatus.type} forces a full exit+enter animation whenever the
+                 * message type changes (e.g. warning → error), not just when the text changes.
+                 *
+                 * role="status" creates a polite live region so screen readers announce
+                 * the updated message without interrupting what the user is currently hearing.
+                 */}
+                <AnimatePresence mode="wait">
+                  {totalStatus && (
+                    <motion.p
+                      key={totalStatus.type}
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.15 }}
+                      role="status"
+                      className={`text-xs mt-1 flex items-center ${
+                        totalStatus.type === 'success'
+                          ? 'text-green-600'
+                          : totalStatus.type === 'error'
+                            ? 'text-red-600'
+                            : 'text-yellow-600'
+                      }`}
+                    >
+                      {/* Warning icon only shown for error and warning states, not success */}
+                      {totalStatus.type !== 'success' && (
+                        <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                      )}
+                      {totalStatus.text}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* ── Rebalance threshold and auto-rebalance toggle ── */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Rebalance Settings
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" htmlFor="strategySelect">
+                    Rebalancing Strategy
+                  </label>
+                  <select
+                    id="strategySelect"
+                    value={strategy}
+                    onChange={(e) => {
+                      const newStrat = e.target.value;
+                      setStrategy(newStrat);
+                      if (newStrat === 'periodic') {
+                        setStrategyConfig({ intervalDays: 7 });
+                      } else if (newStrat === 'volatility') {
+                        setStrategyConfig({ volatilityThresholdPct: 10 });
+                      } else if (newStrat === 'custom') {
+                        setStrategyConfig({ minDaysBetweenRebalance: 1 });
+                      } else {
+                        setStrategyConfig({});
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="threshold">Threshold-based</option>
+                    <option value="periodic">Periodic (time-based)</option>
+                    <option value="volatility">Volatility-based</option>
+                    <option value="custom">Custom rules</option>
+                  </select>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {strategy === "threshold" &&
+                      "Rebalance when allocation drift exceeds the threshold."}
+                    {strategy === "periodic" &&
+                      "Rebalance on a fixed schedule (e.g. every 7 or 30 days)."}
+                    {strategy === "volatility" &&
+                      "Rebalance when market volatility exceeds a percentage threshold."}
+                    {strategy === "custom" &&
+                      "Minimum days between rebalances plus threshold check."}
+                  </p>
+                </div>
+
+                {strategy === 'periodic' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" htmlFor="intervalDays">
+                      Interval (days)
+                    </label>
+                    <input
+                      id="intervalDays"
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={Number.isNaN(strategyConfig.intervalDays) ? '' : (strategyConfig.intervalDays ?? 7)}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? NaN : parseInt(e.target.value);
+                        setStrategyConfig((c) => ({
+                          ...c,
+                          intervalDays: val,
+                        }));
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                        intervalDaysError
+                          ? 'border-red-500 focus:ring-red-400 bg-red-50 dark:bg-red-900/30'
+                          : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                      }`}
+                    />
+                    <AnimatePresence>
+                      {intervalDaysError && (
+                        <motion.p
+                          role="alert"
+                          initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                          animate={{
+                            opacity: 1,
+                            height: 'auto',
+                            marginTop: 4,
+                          }}
+                          exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="flex items-center text-xs text-red-600 pl-1"
+                        >
+                          <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                          {intervalDaysError}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+
+                {strategy === 'volatility' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" htmlFor="volatilityThresholdPct">
+                      Volatility threshold (%)
+                    </label>
+                    <input
+                      id="volatilityThresholdPct"
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={Number.isNaN(strategyConfig.volatilityThresholdPct) ? '' : (strategyConfig.volatilityThresholdPct ?? 10)}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? NaN : parseInt(e.target.value);
+                        setStrategyConfig((c) => ({
+                          ...c,
+                          volatilityThresholdPct: val,
+                        }));
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                        volatilityThresholdPctError
+                          ? 'border-red-500 focus:ring-red-400 bg-red-50 dark:bg-red-900/30'
+                          : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                      }`}
+                    />
+                    <AnimatePresence>
+                      {volatilityThresholdPctError && (
+                        <motion.p
+                          role="alert"
+                          initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                          animate={{
+                            opacity: 1,
+                            height: 'auto',
+                            marginTop: 4,
+                          }}
+                          exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="flex items-center text-xs text-red-600 pl-1"
+                        >
+                          <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                          {volatilityThresholdPctError}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+
+                {strategy === 'custom' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" htmlFor="minDaysBetweenRebalance">
+                      Min days between rebalances
+                    </label>
+                    <input
+                      id="minDaysBetweenRebalance"
+                      type="number"
+                      min="0"
+                      max="365"
+                      value={Number.isNaN(strategyConfig.minDaysBetweenRebalance) ? '' : (strategyConfig.minDaysBetweenRebalance ?? 1)}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? NaN : parseInt(e.target.value);
+                        setStrategyConfig((c) => ({
+                          ...c,
+                          minDaysBetweenRebalance: val,
+                        }));
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                        minDaysBetweenRebalanceError
+                          ? 'border-red-500 focus:ring-red-400 bg-red-50 dark:bg-red-900/30'
+                          : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                      }`}
+                    />
+                    <AnimatePresence>
+                      {minDaysBetweenRebalanceError && (
+                        <motion.p
+                          role="alert"
+                          initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                          animate={{
+                            opacity: 1,
+                            height: 'auto',
+                            marginTop: 4,
+                          }}
+                          exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="flex items-center text-xs text-red-600 pl-1"
+                        >
+                          <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                          {minDaysBetweenRebalanceError}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+
+                {strategy !== 'periodic' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" htmlFor="threshold">
+                      Rebalance Threshold (%)
+                    </label>
+                    <input
+                      id="threshold"
+                      type="number"
+                      min="1"
+                      max="50"
+                      step="any"
+                      aria-invalid={Boolean(thresholdError)}
+                      aria-describedby={thresholdError ? 'threshold-help threshold-error' : 'threshold-help'}
+                      value={Number.isNaN(threshold) ? '' : (threshold ?? 5)}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? NaN : e.target.valueAsNumber;
+                        setThreshold(val);
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent transition-colors bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
+                        thresholdError
+                          ? 'border-red-500 focus:ring-red-400 bg-red-50 dark:bg-red-900/30'
+                          : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                      }`}
+                    />
+                    <AnimatePresence>
+                      {thresholdError && (
+                        <motion.p
+                          id="threshold-error"
+                          role="alert"
+                          initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                          animate={{
+                            opacity: 1,
+                            height: 'auto',
+                            marginTop: 4,
+                          }}
+                          exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="flex items-center text-xs text-red-600 pl-1"
+                        >
+                          <AlertCircle className="w-3 h-3 mr-1 flex-shrink-0" />
+                          {thresholdError}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                    <p id="threshold-help" className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Enter 1% to 50%, including both endpoints. Rebalance triggers when an asset's drift exceeds this threshold.
+                    </p>
+                  </div>
+                )}
+
+                <div className="min-w-0">
+                  <label htmlFor="max-slippage-input" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 break-words">
+                    Max Slippage (%)
+                  </label>
+                  <input
+                    id="max-slippage-input"
+                    type="number"
+                    min="0.1"
+                    max="5"
+                    step="0.1"
+                    value={slippageTolerance}
+                    onChange={(e) =>
+                      setSlippageTolerance(parseFloat(e.target.value) || 1)
+                    }
+                    className="w-full max-w-full min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 break-words min-w-0">
+                    Trades will be rejected if price moves beyond this (0.1% -
+                    5%)
+                  </p>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="autoRebalance"
+                    checked={autoRebalance}
+                    onChange={(e) => setAutoRebalance(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label
+                    htmlFor="autoRebalance"
+                    className="ml-2 text-sm text-gray-700 dark:text-gray-300"
+                  >
+                    Enable automatic rebalancing
+                  </label>
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Automatically execute rebalances when threshold is exceeded
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ════ Right column: live preview + submit ════ */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Portfolio Preview
+            </h3>
+
+            {/* Allocation breakdown with colour-coded dots per asset */}
+            <div className="space-y-3 mb-6">
+              {allocations.map((allocation, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div
+                      className="w-4 h-4 rounded-full mr-3"
+                      style={{
+                        backgroundColor:
+                          ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'][index] ||
+                          '#6B7280',
+                      }}
+                    />
+                    <span className="font-medium dark:text-gray-200">
+                      {allocation.asset}
+                    </span>
+                  </div>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    {allocation.percentage}%
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Settings summary card */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2 min-w-0">
+              <div className="flex flex-wrap justify-between gap-1 min-w-0">
+                <span className="text-sm text-gray-600 dark:text-gray-400 break-words">
+                  Rebalance Threshold:
+                </span>
+                <span className="text-sm font-medium dark:text-gray-200 break-words">
+                  {threshold}%
+                </span>
+              </div>
+              <div className="flex flex-wrap justify-between gap-1 min-w-0">
+                <span className="text-sm text-gray-600 dark:text-gray-400 break-words">
+                  Auto-Rebalance:
+                </span>
+                <span className="text-sm font-medium dark:text-gray-200 break-words">
+                  {autoRebalance ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+              <div className="flex flex-wrap justify-between gap-1 min-w-0">
+                <span className="text-sm text-gray-600 dark:text-gray-400 break-words">
+                  Max Slippage:
+                </span>
+                <span className="text-sm font-medium dark:text-gray-200 break-words">
+                  {slippageTolerance}%
+                </span>
+              </div>
+              <div className="flex flex-wrap justify-between gap-1 min-w-0">
+                <span className="text-sm text-gray-600 dark:text-gray-400 break-words">
+                  Portfolio Value:
+                </span>
+                <span className="text-sm font-medium dark:text-gray-200 break-words">
+                  {isDemoMode ? '$10,000 (Simulated Demo)' : '$10,000 (Demo)'}
+                </span>
+              </div>
+            </div>
+
+            {/*
+             * Submit button.
+             * Disabled when any of these conditions are true:
+             *   - hasAnyFieldError: at least one percentage input is out of range
+             *   - !isValidTotal: percentages don't add up to 100%
+             *   - createPortfolioMutation.isPending: API call is already in progress
+             * disabled:cursor-not-allowed gives a visual cue that the button is blocked.
+             */}
+            <button
+              type="button"
+              onClick={createPortfolio}
+              disabled={
+                hasAnyFieldError ||
+                !isValidTotal ||
+                createPortfolioMutation.isPending
+              }
+              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white p-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              {createPortfolioMutation.isPending ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  Creating Portfolio...
+                </>
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  Create Portfolio
+                </>
+              )}
+            </button>
+
+          </div>
+        </div>
+
+        {/* close entryMode === 'manual' Fragment */}
+        </>
+        )}
+
+        {/* Sticky (in flow) mobile action bar: never covers the form, however tall it gets at 200% text */}
+        <div className="mobile-action-bar sticky bottom-0 -mx-3 sm:-mx-6 mt-6 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 md:hidden z-40">
+          <div className="flex flex-wrap items-center justify-between gap-2 max-w-sm mx-auto min-w-0">
+            {/* Allocation Summary */}
+            <div className="text-center min-w-0">
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                Total Allocation
+              </div>
+              <div
+                className={`text-lg font-bold ${
+                  isValidTotal
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                {totalPercentage.toFixed(2)}%
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {allocations.length} asset{allocations.length !== 1 ? "s" : ""}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Back Button */}
+              <button
+                onClick={() => onNavigate("dashboard")}
+                className="border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 min-h-11 rounded-lg text-sm transition-colors flex items-center gap-1"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+
+              {/* Create Portfolio Button */}
+              <button
+                type="button"
+                onClick={createPortfolio}
+                disabled={
+                  hasAnyFieldError ||
+                  !isValidTotal ||
+                  createPortfolioMutation.isPending
+                }
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white px-4 py-2 min-h-11 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
+              >
+                {createPortfolioMutation.isPending ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Create
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+export default PortfolioSetup;

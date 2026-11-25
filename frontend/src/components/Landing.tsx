@@ -1,0 +1,392 @@
+import React, { useState, useRef, useEffect } from 'react'
+import { motion } from 'framer-motion'
+import { TrendingUp, Shield, Zap, ArrowRight, X, Layers, Activity, Lock, ChevronDown, LogOut, Wallet } from 'lucide-react'
+import ThemeToggle from './ThemeToggle'
+import { WalletSelector } from './WalletSelector'
+import { api, ENDPOINTS } from '../config/api'
+import { getConfiguredNetwork } from '../utils/networkDetection'
+import SystemStatusPanel from './SystemStatusPanel'
+import { useDialogFocus } from '../hooks/useDialogFocus'
+
+interface LandingProps {
+    onNavigate: (view: string) => void
+    onConnectWallet: () => Promise<void>
+    onNeedsConsent?: (publicKey: string) => void
+    isConnecting: boolean
+    publicKey: string | null
+}
+
+const Landing: React.FC<LandingProps> = ({ onNavigate, onConnectWallet, onNeedsConsent, isConnecting, publicKey }) => {
+    const [showWalletSelector, setShowWalletSelector] = useState(false)
+    const [showWalletDropdown, setShowWalletDropdown] = useState(false)
+    const dropdownRef = useRef<HTMLDivElement>(null)
+    const walletDialogRef = useRef<HTMLDivElement>(null)
+    const configuredNetwork = getConfiguredNetwork()
+    useDialogFocus(showWalletSelector, walletDialogRef, { onClose: () => setShowWalletSelector(false) })
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setShowWalletDropdown(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
+
+    const handleConnectWallet = async () => {
+        setShowWalletSelector(true)
+    }
+
+    const handleWalletSelected = async (pk: string) => {
+        setShowWalletSelector(false)
+        try {
+            const res = await api.get<{ accepted: boolean }>(
+                `${ENDPOINTS.CONSENT_STATUS}?userId=${encodeURIComponent(pk)}`
+            )
+            if (res?.accepted) {
+                await onConnectWallet()
+            } else if (onNeedsConsent) {
+                onNeedsConsent(pk)
+            } else {
+                await onConnectWallet()
+            }
+        } catch {
+            if (onNeedsConsent) onNeedsConsent(pk)
+            else await onConnectWallet()
+        }
+    }
+
+    const handleDisconnect = async () => {
+        setShowWalletDropdown(false)
+        // The actual disconnect is handled by the parent component via navigation
+        onNavigate('landing')
+    }
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+            {/* Header */}
+            <nav className="flex items-center justify-between p-6 max-w-7xl mx-auto">
+                <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <TrendingUp className="w-5 h-5 text-white" />
+                    </div>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">Portfolio Rebalancer</span>
+                </div>
+                <div className="flex items-center space-x-3 sm:space-x-4">
+                    <ThemeToggle />
+                    {publicKey ? (
+                        <div className="relative" ref={dropdownRef}>
+                            <button
+                                onClick={() => setShowWalletDropdown(!showWalletDropdown)}
+                                className="flex items-center space-x-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 px-3 py-2 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors"
+                            >
+                                <Wallet className="w-4 h-4 text-green-600 dark:text-green-400" />
+                                <span className="text-sm font-medium text-green-700 dark:text-green-300 hidden sm:inline">
+                                    {publicKey.slice(0, 6)}...{publicKey.slice(-4)}
+                                </span>
+                                <span className="text-sm font-medium text-green-700 dark:text-green-300 sm:hidden">
+                                    {publicKey.slice(0, 4)}...{publicKey.slice(-4)}
+                                </span>
+                                <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                                    configuredNetwork === 'mainnet' 
+                                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300'
+                                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
+                                }`}>
+                                    {configuredNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'}
+                                </span>
+                                <ChevronDown className="w-4 h-4 text-green-600 dark:text-green-400" />
+                            </button>
+                            {showWalletDropdown && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                                    <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Connected as</p>
+                                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                            {publicKey.slice(0, 8)}...{publicKey.slice(-8)}
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            {configuredNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={handleDisconnect}
+                                        className="w-full flex items-center px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                    >
+                                        <LogOut className="w-4 h-4 mr-2" />
+                                        Disconnect
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <button
+                            onClick={handleConnectWallet}
+                            disabled={isConnecting}
+                            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 sm:px-4 py-2 rounded-lg transition-colors flex items-center text-sm sm:text-base"
+                        >
+                            <Wallet className="w-4 h-4 mr-2" />
+                            Connect Wallet
+                        </button>
+                    )}
+                </div>
+            </nav>
+
+            {/* Hero Section */}
+            <div className="max-w-7xl mx-auto px-6 py-20">
+                <div className="text-center">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.8 }}
+                    >
+                        <h1 className="text-5xl md:text-7xl font-bold text-gray-900 dark:text-white mb-6">
+                            Smart Portfolio <span className="text-blue-600">Rebalancing</span>
+                        </h1>
+                        <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
+                            Maintain optimal asset allocation automatically with our intelligent rebalancing
+                            protocol. Powered by Stellar's ecosystem and Reflector's reliable price oracles.
+                        </p>
+                    </motion.div>
+
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                        className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+                    >
+                        <button
+                            onClick={handleConnectWallet}
+                            disabled={isConnecting}
+                            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-colors flex items-center"
+                        >
+                            {isConnecting ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                                    Connecting...
+                                </>
+                            ) : (
+                                <>
+                                    Connect Wallet to Start
+                                    <ArrowRight className="w-5 h-5 ml-2" />
+                                </>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => onNavigate('dashboard')}
+                            className="bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 px-8 py-4 rounded-xl font-semibold text-lg transition-colors"
+                        >
+                            View Demo
+                        </button>
+                    </motion.div>
+                </div>
+
+                {/* Features Section */}
+                <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, delay: 0.4 }}
+                    className="mt-32"
+                >
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
+                            Why Choose Our Platform?
+                        </h2>
+                        <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+                            Built for the next generation of DeFi with enterprise-grade security and user-friendly design
+                        </p>
+                    </div>
+
+                    <div className="grid md:grid-cols-3 gap-8">
+                        <motion.div
+                            whileHover={{ y: -5 }}
+                            className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300"
+                        >
+                            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-xl flex items-center justify-center mb-6">
+                                <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Smart Rebalancing</h3>
+                            <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                                Automatically maintain your target allocations with intelligent threshold-based rebalancing
+                                that saves you time and reduces emotional trading decisions.
+                            </p>
+                        </motion.div>
+
+                        <motion.div
+                            whileHover={{ y: -5 }}
+                            className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300"
+                        >
+                            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-xl flex items-center justify-center mb-6">
+                                <Shield className="w-6 h-6 text-green-600 dark:text-green-400" />
+                            </div>
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Risk Management</h3>
+                            <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                                Built-in safeguards and circuit breakers protect your portfolio from extreme market
+                                conditions and prevent concentration risk.
+                            </p>
+                        </motion.div>
+
+                        <motion.div
+                            whileHover={{ y: -5 }}
+                            className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300"
+                        >
+                            <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-xl flex items-center justify-center mb-6">
+                                <Zap className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                            </div>
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Real-time Oracle Data</h3>
+                            <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                                Powered by Reflector's decentralized price feeds for accurate, manipulation-resistant
+                                pricing data from multiple sources.
+                            </p>
+                        </motion.div>
+                    </div>
+                </motion.div>
+
+                <section
+                    className="mt-32 max-w-4xl mx-auto"
+                    aria-labelledby="how-it-works-heading"
+                >
+                    <h2
+                        id="how-it-works-heading"
+                        className="text-3xl font-bold text-gray-900 dark:text-white text-center mb-4"
+                    >
+                        How it works
+                    </h2>
+                    <p className="text-center text-gray-600 dark:text-gray-300 mb-10">
+                        Wallet, API, and on-chain layers stay separate so you can see what runs where.
+                    </p>
+                    <ol className="grid gap-6 md:grid-cols-3 text-left">
+                        <li className="bg-white/80 dark:bg-gray-800/80 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                            <Layers className="w-6 h-6 text-blue-600 dark:text-blue-400 mb-3" aria-hidden />
+                            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">1. Connect & configure</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Link your Stellar wallet, set target allocations, and choose rebalance thresholds in the React app.
+                            </p>
+                        </li>
+                        <li className="bg-white/80 dark:bg-gray-800/80 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                            <Activity className="w-6 h-6 text-green-600 dark:text-green-400 mb-3" aria-hidden />
+                            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">2. Monitor drift</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                The Node.js API tracks prices from Reflector oracles, evaluates drift, and queues work when limits are exceeded.
+                            </p>
+                        </li>
+                        <li className="bg-white/80 dark:bg-gray-800/80 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                            <Shield className="w-6 h-6 text-purple-600 dark:text-purple-400 mb-3" aria-hidden />
+                            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">3. Rebalance safely</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Soroban contracts and the Stellar DEX execute trades only after circuit breakers and cooldown checks pass.
+                            </p>
+                        </li>
+                    </ol>
+                </section>
+
+                <section
+                    className="mt-20 max-w-4xl mx-auto"
+                    aria-labelledby="trust-heading"
+                >
+                    <h2
+                        id="trust-heading"
+                        className="text-3xl font-bold text-gray-900 dark:text-white text-center mb-4"
+                    >
+                        Built for transparency
+                    </h2>
+                    <ul className="grid gap-4 md:grid-cols-2 text-sm text-gray-600 dark:text-gray-300">
+                        <li className="flex gap-3 rounded-xl bg-white dark:bg-gray-800 p-5 border border-gray-200 dark:border-gray-700">
+                            <Lock className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" aria-hidden />
+                            <span>
+                                Consent, export, and delete flows align with published legal documents that show a fixed version and effective date.
+                            </span>
+                        </li>
+                        <li className="flex gap-3 rounded-xl bg-white dark:bg-gray-800 p-5 border border-gray-200 dark:border-gray-700">
+                            <Shield className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" aria-hidden />
+                            <span>
+                                Risk controls include concentration limits, volatility pauses, and cooldowns before any rebalance is submitted.
+                            </span>
+                        </li>
+                        <li className="flex gap-3 rounded-xl bg-white dark:bg-gray-800 p-5 border border-gray-200 dark:border-gray-700 md:col-span-2">
+                            <Activity className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" aria-hidden />
+                            <span>
+                                Optional Sentry, Prometheus, and structured logging help operators detect price-feed degradation and failed jobs—see{' '}
+                                <span className="font-medium text-gray-800 dark:text-gray-200">docs/OBSERVABILITY.md</span> for the full stack.
+                            </span>
+                        </li>
+                    </ul>
+
+                    <div className="mt-8">
+                        <SystemStatusPanel />
+                        <button
+                            type="button"
+                            onClick={() => onNavigate('status')}
+                            className="mt-3 text-sm font-medium text-blue-600 hover:underline dark:text-blue-400"
+                        >
+                            Open the full system status page
+                        </button>
+                    </div>
+                </section>
+            </div>
+
+            {/* Footer with legal links */}
+            <footer className="border-t border-gray-200 dark:border-gray-700 mt-20 py-6">
+                <div className="max-w-7xl mx-auto px-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-gray-600 dark:text-gray-400">
+                    <button
+                        type="button"
+                        onClick={() => onNavigate('legal-terms')}
+                        className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                    >
+                        Terms of Service
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onNavigate('legal-privacy')}
+                        className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                    >
+                        Privacy Policy
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onNavigate('legal-cookies')}
+                        className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                    >
+                        Cookie Policy
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onNavigate('status')}
+                        className="hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
+                    >
+                        System Status
+                    </button>
+                </div>
+            </footer>
+
+            {showWalletSelector && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
+                    <motion.div
+                        ref={walletDialogRef}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="wallet-dialog-title"
+                        tabIndex={-1}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full shadow-xl"
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 id="wallet-dialog-title" className="text-xl font-semibold text-gray-900 dark:text-white">Select Wallet</h2>
+                            <button
+                                type="button"
+                                aria-label="Close wallet selection"
+                                onClick={() => setShowWalletSelector(false)}
+                                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                            >
+                                <X className="w-5 h-5" aria-hidden="true" />
+                            </button>
+                        </div>
+                        <WalletSelector onConnect={handleWalletSelected} />
+                    </motion.div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+export default Landing

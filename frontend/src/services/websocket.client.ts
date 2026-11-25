@@ -1,0 +1,243 @@
+import {
+    WS_PROTOCOL_VERSION,
+    WS_SUBSCRIBED_TYPE,
+    WS_HEARTBEAT_TYPE,
+    WS_ERROR_TYPE,
+    WS_RECONNECT_MAX_ATTEMPTS,
+    WS_RECONNECT_SUGGESTED_BACKOFF_MS
+} from '../constants/wsProtocol'
+
+export type RealtimeConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'paused'
+
+export type RealtimeReconnectInfo = {
+    attempt: number
+    maxAttempts: number
+    nextRetryMs: number
+}
+
+export type RebalancerWSOptions = {
+    maxReconnectAttempts?: number
+    maxBackoffMs?: number
+    onStateChange?: (state: RealtimeConnectionState) => void
+    onMessage?: (data: unknown) => void
+    onStatusDetail?: (detail: string | null) => void
+    onReconnectInfo?: (info: RealtimeReconnectInfo | null) => void
+}
+
+const DEFAULT_MAX_ATTEMPTS = WS_RECONNECT_MAX_ATTEMPTS
+const DEFAULT_MAX_BACKOFF_MS = WS_RECONNECT_SUGGESTED_BACKOFF_MS
+
+export class RebalancerWSClient {
+    private ws: WebSocket | null = null
+    private readonly url: string
+    private readonly maxReconnectAttempts: number
+    private readonly maxBackoffMs: number
+    private readonly onStateChange?: (state: RealtimeConnectionState) => void
+    private readonly onMessage?: (data: unknown) => void
+    private readonly onStatusDetail?: (detail: string | null) => void
+    private readonly onReconnectInfo?: (info: RealtimeReconnectInfo | null) => void
+
+    private intentionalClose = false
+    private pausedByVisibility = false
+    private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    private reconnectCycles = 0
+    private pendingRetryMs: number | null = null
+
+    constructor(url: string, options: RebalancerWSOptions = {}) {
+        this.url = url
+        this.maxReconnectAttempts = options.maxReconnectAttempts ?? DEFAULT_MAX_ATTEMPTS
+        this.maxBackoffMs = options.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS
+        this.onStateChange = options.onStateChange
+        this.onMessage = options.onMessage
+        this.onStatusDetail = options.onStatusDetail
+        this.onReconnectInfo = options.onReconnectInfo
+    }
+
+    private setState(state: RealtimeConnectionState): void {
+        this.onStateChange?.(state)
+    }
+
+    private clearReconnectTimer(): void {
+        if (this.reconnectTimer != null) {
+            clearTimeout(this.reconnectTimer)
+            this.reconnectTimer = null
+        }
+        this.pendingRetryMs = null
+        this.onReconnectInfo?.(null)
+    }
+
+    private emitReconnectInfo(delay: number): void {
+        this.pendingRetryMs = delay
+        this.onReconnectInfo?.({
+            attempt: this.reconnectCycles + 1,
+            maxAttempts: this.maxReconnectAttempts,
+            nextRetryMs: delay,
+        })
+    }
+
+    private scheduleReconnect(): void {
+        this.clearReconnectTimer()
+        if (this.pausedByVisibility) {
+            this.onStatusDetail?.('Live updates paused while this tab is in the background.')
+            this.setState('paused')
+            return
+        }
+        if (this.reconnectCycles >= this.maxReconnectAttempts) {
+            this.onStatusDetail?.(
+                `Could not restore the live connection after ${this.maxReconnectAttempts} retries.`,
+            )
+            this.setState('disconnected')
+            return
+        }
+        const base = Math.min(1000 * 2 ** this.reconnectCycles, this.maxBackoffMs)
+        const jitter = Math.random() * 400
+        const delay = Math.min(base + jitter, this.maxBackoffMs)
+        this.onStatusDetail?.(
+            `Next retry in ${Math.round(delay / 1000)}s (${this.reconnectCycles + 1}/${this.maxReconnectAttempts})`,
+        )
+        this.emitReconnectInfo(delay)
+        this.setState('reconnecting')
+        this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null
+            this.reconnectCycles += 1
+            this.openSocket()
+        }, delay)
+    }
+
+    private openSocket(): void {
+        if (this.intentionalClose) return
+        if (this.pausedByVisibility) {
+            this.setState('paused')
+            return
+        }
+        if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
+            return
+        }
+
+        this.onStatusDetail?.(null)
+        this.setState(this.reconnectCycles === 0 ? 'connecting' : 'reconnecting')
+        if (this.reconnectCycles > 0) {
+            const delay = this.pendingRetryMs ?? 1000
+            this.emitReconnectInfo(delay)
+        }
+
+        try {
+            this.ws = new WebSocket(this.url)
+        } catch {
+            this.onStatusDetail?.('Failed to open WebSocket')
+            this.scheduleReconnect()
+            return
+        }
+
+        this.ws.onopen = () => {
+            this.reconnectCycles = 0
+
+        }
+
+        this.ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data as string) as Record<string, unknown>
+
+                if (data.type === WS_SUBSCRIBED_TYPE) {
+                    this.onStatusDetail?.(null)
+                    this.setState('connected')
+                    return
+                }
+
+                if (data.type === WS_HEARTBEAT_TYPE) {
+                    this.onMessage?.(data)
+                    return
+                }
+
+                if (data.type === WS_ERROR_TYPE) {
+                    const payload = data.payload
+                    this.onStatusDetail?.(
+                        typeof payload === 'string'
+                            ? payload
+                            : 'Realtime connection error',
+                    )
+                }
+
+                this.onMessage?.(data)
+            } catch {
+                this.onMessage?.(event.data)
+            }
+        }
+
+        this.ws.onerror = () => {
+            this.onStatusDetail?.('WebSocket error')
+        }
+
+        this.ws.onclose = () => {
+            this.ws = null
+            if (this.intentionalClose) {
+                this.setState('disconnected')
+                return
+            }
+            this.scheduleReconnect()
+        }
+    }
+
+    setPaused(paused: boolean): void {
+        this.pausedByVisibility = paused
+        if (paused) {
+            this.clearReconnectTimer()
+            if (this.ws) {
+                this.ws.close()
+                this.ws = null
+            }
+            this.onStatusDetail?.('Live updates paused while this tab is in the background.')
+            this.setState('paused')
+            return
+        }
+        if (!this.intentionalClose && this.ws?.readyState !== WebSocket.OPEN) {
+            this.onStatusDetail?.(null)
+            this.reconnectCycles = 0
+            this.openSocket()
+        }
+    }
+
+    connect(): void {
+        this.intentionalClose = false
+        this.reconnectCycles = 0
+        this.clearReconnectTimer()
+        this.openSocket()
+    }
+
+    resume(): void {
+        this.intentionalClose = false
+        this.pausedByVisibility = false
+        this.reconnectCycles = 0
+        this.onStatusDetail?.(null)
+        this.clearReconnectTimer()
+        if (this.ws?.readyState === WebSocket.OPEN) {
+            this.setState('connected')
+            return
+        }
+        this.openSocket()
+    }
+
+    disconnect(): void {
+        this.intentionalClose = true
+        this.clearReconnectTimer()
+        this.onStatusDetail?.(null)
+        if (this.ws) {
+            this.ws.close()
+            this.ws = null
+        }
+        this.setState('disconnected')
+    }
+
+    send(type: string, payload: unknown): boolean {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false
+        this.ws.send(
+            JSON.stringify({
+                version: WS_PROTOCOL_VERSION,
+                type,
+                payload,
+                timestamp: Date.now(),
+            }),
+        )
+        return true
+    }
+}

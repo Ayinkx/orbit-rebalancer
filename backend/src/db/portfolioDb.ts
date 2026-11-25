@@ -1,0 +1,338 @@
+import { query } from './client.js'
+import { ConflictError } from '../types/index.js'
+
+export interface PortfolioRow {
+    id: string
+    user_address: string
+    name?: string
+    description?: string
+    allocations: Record<string, number>
+    threshold: number
+    slippage_tolerance?: number
+    balances: Record<string, number>
+    total_value: number
+    created_at: Date
+    last_rebalance: Date
+    version: number
+    strategy?: string
+    strategy_config?: Record<string, unknown>
+    archived_at?: Date
+}
+
+export interface PortfolioPageCursor {
+    createdAt: string
+    id: string
+}
+
+export interface PortfolioPage {
+    portfolios: ReturnType<typeof rowToPortfolio>[]
+    nextCursor: PortfolioPageCursor | null
+    count: number
+    total?: number
+}
+
+export interface PortfolioPaginationResult<T = ReturnType<typeof rowToPortfolio>> {
+    portfolios: T[]
+    limit: number
+    cursor: string | null
+    nextCursor: string | null
+    count: number
+    total: number
+}
+
+function rowToPortfolio(r: PortfolioRow) {
+    return {
+        id: r.id,
+        userAddress: r.user_address,
+        name: r.name,
+        description: r.description,
+        allocations: r.allocations || {},
+        threshold: r.threshold,
+        slippageTolerance: r.slippage_tolerance != null ? Number(r.slippage_tolerance) : 1,
+        balances: r.balances || {},
+        totalValue: Number(r.total_value),
+        createdAt: r.created_at.toISOString(),
+        lastRebalance: r.last_rebalance.toISOString(),
+        version: r.version ?? 1,
+        strategy: (r.strategy as import('../types/index.js').RebalanceStrategyType) || 'threshold',
+        strategyConfig: r.strategy_config || undefined,
+        archivedAt: r.archived_at ? r.archived_at.toISOString() : undefined
+    }
+}
+
+export async function dbCreatePortfolio(
+    id: string,
+    userAddress: string,
+    allocations: Record<string, number>,
+    threshold: number,
+    balances: Record<string, number>,
+    totalValue: number,
+    slippageTolerance: number = 1,
+    strategy: string = 'threshold',
+    strategyConfig: Record<string, unknown> = {},
+    name?: string,
+    description?: string
+)
+{
+    await query(
+        `INSERT INTO portfolios (id, user_address, allocations, threshold, slippage_tolerance, balances, total_value, created_at, last_rebalance, version, strategy, strategy_config, name, description)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW(), 1, $8, $9, $10, $11)`,
+        [id, userAddress, JSON.stringify(allocations), threshold, slippageTolerance, JSON.stringify(balances), totalValue, strategy, JSON.stringify(strategyConfig), name, description]
+    )
+}
+
+export async function dbGetPortfolio(id: string) {
+    const result = await query<PortfolioRow>(
+        'SELECT * FROM portfolios WHERE id = $1',
+        [id]
+    )
+    const row = result.rows[0]
+    return row ? rowToPortfolio(row) : undefined
+}
+
+export async function dbGetUserPortfolios(userAddress: string, includeArchived = false) {
+    const sql = includeArchived
+        ? 'SELECT * FROM portfolios WHERE user_address = $1 ORDER BY created_at ASC'
+        : 'SELECT * FROM portfolios WHERE user_address = $1 AND archived_at IS NULL ORDER BY created_at ASC'
+    const result = await query<PortfolioRow>(sql, [userAddress])
+    return result.rows.map(rowToPortfolio)
+}
+
+export async function dbGetAllPortfolios(includeArchived = false) {
+    const sql = includeArchived
+        ? 'SELECT * FROM portfolios ORDER BY created_at ASC'
+        : 'SELECT * FROM portfolios WHERE archived_at IS NULL ORDER BY created_at ASC'
+    const result = await query<PortfolioRow>(sql)
+    return result.rows.map(rowToPortfolio)
+}
+
+export async function dbArchivePortfolio(id: string): Promise<boolean> {
+    const result = await query(
+        'UPDATE portfolios SET archived_at = NOW() WHERE id = $1 AND archived_at IS NULL',
+        [id]
+    )
+    return (result.rowCount ?? 0) > 0
+}
+
+export async function dbRestorePortfolio(id: string): Promise<boolean> {
+    const result = await query(
+        'UPDATE portfolios SET archived_at = NULL WHERE id = $1',
+        [id]
+    )
+    return (result.rowCount ?? 0) > 0
+}
+
+/**
+ * Update a portfolio record.
+ *
+ * When `expectedVersion` is provided the update uses compare-and-set semantics:
+ * the row is only modified when its current version matches `expectedVersion`,
+ * and the version counter is incremented atomically.  A `ConflictError` is
+ * thrown when the match fails, signalling that a concurrent write has already
+ * advanced the version.
+ *
+ * Omitting `expectedVersion` performs an unchecked update (backward-compat)
+ * while still incrementing the version so that subsequent versioned callers
+ * detect the change.
+ */
+export async function dbUpdatePortfolio(
+    id: string,
+    updates: { 
+        userAddress?: string;
+        name?: string;
+        description?: string;
+        allocations?: Record<string, number>;
+        threshold?: number;
+        balances?: Record<string, number>; 
+        totalValue?: number; 
+        lastRebalance?: string 
+    },
+    expectedVersion?: number
+) {
+    if (updates.allocations !== undefined) {
+        const { isRebalanceActive } = await import('../services/portfolioPersistenceBoundary.js')
+        if (await isRebalanceActive(id)) {
+            const current = await query<{ version: number }>('SELECT version FROM portfolios WHERE id = $1', [id])
+            const { ConflictError } = await import('../types/index.js')
+            throw new ConflictError(
+                current.rows[0]?.version ?? -1,
+                `Cannot edit allocations while portfolio ${id} is actively rebalancing`,
+                'rebalancing',
+                'conflict_rebalancing'
+            )
+        }
+    }
+
+    const sets: string[] = []
+    const values: unknown[] = []
+    let i = 1
+    if (updates.userAddress !== undefined) {
+        sets.push(`user_address = $${i++}`)
+        values.push(updates.userAddress)
+    }
+    if (updates.name !== undefined) {
+        sets.push(`name = $${i++}`)
+        values.push(updates.name)
+    }
+    if (updates.description !== undefined) {
+        sets.push(`description = $${i++}`)
+        values.push(updates.description)
+    }
+    if (updates.allocations !== undefined) {
+        sets.push(`allocations = $${i++}`)
+        values.push(JSON.stringify(updates.allocations))
+    }
+    if (updates.threshold !== undefined) {
+        sets.push(`threshold = $${i++}`)
+        values.push(updates.threshold)
+    }
+    if (updates.balances !== undefined) {
+        sets.push(`balances = $${i++}`)
+        values.push(JSON.stringify(updates.balances))
+    }
+    if (updates.totalValue !== undefined) {
+        sets.push(`total_value = $${i++}`)
+        values.push(updates.totalValue)
+    }
+    if (updates.lastRebalance !== undefined) {
+        sets.push(`last_rebalance = $${i++}`)
+        values.push(updates.lastRebalance)
+    }
+    if (sets.length === 0) return false
+
+    // Always increment the version counter on every write
+    sets.push(`version = version + 1`)
+
+    if (expectedVersion !== undefined) {
+        // Compare-and-set: WHERE id = $n AND version = $m
+        values.push(id)
+        values.push(expectedVersion)
+        const result = await query(
+            `UPDATE portfolios SET ${sets.join(', ')} WHERE id = $${i} AND version = $${i + 1}`,
+            values
+        )
+        if ((result.rowCount ?? 0) === 0) {
+            // Distinguish not-found from conflict
+            const check = await query<{ id: string }>(
+                'SELECT id FROM portfolios WHERE id = $1',
+                [id]
+            )
+            if (check.rows.length === 0) return false
+            // Row exists but version didn't match — concurrent write detected
+            const current = await query<{ version: number }>(
+                'SELECT version FROM portfolios WHERE id = $1',
+                [id]
+            )
+            throw new ConflictError(current.rows[0]?.version ?? -1)
+        }
+        return true
+    }
+
+    // Unchecked update
+    values.push(id)
+    const result = await query(
+        `UPDATE portfolios SET ${sets.join(', ')} WHERE id = $${i}`,
+        values
+    )
+    return (result.rowCount ?? 0) > 0
+}
+
+export async function dbDeletePortfolio(id: string) {
+    const result = await query('DELETE FROM portfolios WHERE id = $1', [id])
+    return (result.rowCount ?? 0) > 0
+}
+
+export async function dbSearchPortfolios(searchQuery: string, limit: number, offset: number, includeArchived = false) {
+    const archivedFilter = includeArchived ? '' : ' AND archived_at IS NULL'
+    if (!searchQuery) {
+        const result = await query<PortfolioRow>(
+            `SELECT * FROM portfolios WHERE 1=1${archivedFilter} ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
+            [limit, offset]
+        )
+        return result.rows.map(rowToPortfolio)
+    }
+
+    const result = await query<PortfolioRow>(
+        `SELECT * FROM portfolios 
+         WHERE search_vector @@ plainto_tsquery('english', $1)${archivedFilter}
+         ORDER BY ts_rank(search_vector, plainto_tsquery('english', $1)) DESC, created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [searchQuery, limit, offset]
+    )
+    return result.rows.map(rowToPortfolio)
+}
+
+/**
+ * Keyset (cursor) pagination for portfolios.
+ *
+ * Ordering is stable and totally ordered by `(created_at, id)` in ascending
+ * order. The cursor encodes the last row of the previous page so that
+ * concurrent inserts/deletes during pagination never cause duplicates or
+ * skipped rows (unlike LIMIT/OFFSET). The reported `count` is the number of
+ * rows returned in this page, not the total matching rows.
+ */
+export async function dbGetPortfolioPage(options: {
+    search?: string
+    userAddress?: string
+    limit: number
+    cursor?: PortfolioPageCursor | null
+    includeArchived?: boolean
+}): Promise<PortfolioPage & { total: number }> {
+    const { search, userAddress, limit, cursor, includeArchived = false } = options
+
+    if (!Number.isInteger(limit) || limit <= 0) {
+        throw new Error('limit must be a positive integer')
+    }
+
+    const baseConditions: string[] = []
+    const baseValues: unknown[] = []
+    let i = 1
+
+    if (userAddress !== undefined) {
+        baseConditions.push(`user_address = $${i++}`)
+        baseValues.push(userAddress)
+    }
+    if (!includeArchived) {
+        baseConditions.push('archived_at IS NULL')
+    }
+    if (search && search.trim().length > 0) {
+        baseConditions.push(`(name ILIKE $${i} OR description ILIKE $${i++})`)
+        baseValues.push(`%${search.trim()}%`)
+    }
+
+    const baseWhere = baseConditions.length > 0 ? `WHERE ${baseConditions.join(' AND ')}` : ''
+    const countResult = await query<{ count: string }>(
+        `SELECT COUNT(*) as count FROM portfolios ${baseWhere}`,
+        baseValues
+    )
+    const total = parseInt(countResult.rows[0]?.count ?? '0', 10)
+
+    const pagedConditions = [...baseConditions]
+    const pagedValues = [...baseValues]
+    if (cursor) {
+        pagedConditions.push(`(created_at, id) > ($${i++}::timestamptz, $${i++})`)
+        pagedValues.push(cursor.createdAt, cursor.id)
+    }
+
+    const pagedWhere = pagedConditions.length > 0 ? `WHERE ${pagedConditions.join(' AND ')}` : ''
+    pagedValues.push(limit + 1)
+    const result = await query<PortfolioRow>(
+        `SELECT * FROM portfolios ${pagedWhere} ORDER BY created_at ASC, id ASC LIMIT $${i}`,
+        pagedValues
+    )
+
+    const hasMore = result.rows.length > limit
+    const pageRows = hasMore ? result.rows.slice(0, limit) : result.rows
+    const last = pageRows[pageRows.length - 1]
+
+    return {
+        portfolios: pageRows.map(rowToPortfolio),
+        nextCursor: hasMore && last
+            ? { createdAt: last.created_at.toISOString(), id: last.id, total }
+            : null,
+        count: pageRows.length,
+        total,
+    }
+}
+
+
