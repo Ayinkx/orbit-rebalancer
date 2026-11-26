@@ -29,51 +29,24 @@ The `develop` branch follows the same protection rules as `main`. Feature branch
 
 ---
 
-## Required Status Checks
+## GitHub Actions workflows
 
-The following CI workflows are configured as **required status checks** on pull requests targeting `main`. A PR cannot be merged until every required check reports a passing status.
+The table lists the workflow files on `main`. Each workflow file defines its
+exact events, branch filters, and path filters. Branch protection settings
+determine which job names are required to merge a pull request.
 
-### Always-required checks (run on every PR)
-
-| Check name                        | Workflow file                    | What it verifies                                                                 |
-| --------------------------------- | -------------------------------- | -------------------------------------------------------------------------------- |
-| `lint`                            | `lint.yml`                       | ESLint on frontend and backend code                                              |
-| `commit-messages`                 | `lint.yml`                       | Every commit in the PR follows [Conventional Commits](https://conventionalcommits.org/) format |
-| `build`                           | `build.yml`                      | Frontend and backend compile successfully; SBOMs are generated and attested      |
-| `test`                            | `test.yml`                       | Frontend unit tests, backend tests with coverage, and Rust contract tests        |
-| `coverage`                        | `coverage.yml`                   | Frontend and backend test coverage is collected and reported                      |
-| `guard-generated-artifacts`       | `generated-artifact-guard.yml`   | No stale generated files (e.g. `openapi.json`) are committed; runtime artifacts are excluded |
-
-### Path-scoped checks (run when relevant files change)
-
-These checks are triggered only when their path filters match. GitHub treats them as required when they run and as automatically passing when skipped (path-filtered workflows use `paths:` triggers).
-
-| Check name                                    | Workflow file                   | Trigger paths                                                                     | What it verifies                                                        |
-| --------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `backend-tests` (shards 1–4)                  | `backend-tests.yml`             | `backend/**`                                                                      | Backend unit + integration tests across 4 parallel shards               |
-| `backend-coverage` (merge + thresholds)        | `backend-tests.yml`             | `backend/**`                                                                      | Merges shard coverage blobs; enforces thresholds in `vitest.config.ts`  |
-| `openapi-contract`                             | `backend-tests.yml`             | `backend/**`                                                                      | OpenAPI spec freshness and validation (`spec:check`, `api:validate`)    |
-| `migration-dry-run` (SQLite + PostgreSQL)      | `backend-tests.yml`             | `backend/**`                                                                      | Database migrations apply cleanly on both engines                       |
-| `frontend-tests`                               | `frontend-tests.yml`            | `frontend/**`                                                                     | Frontend unit tests with coverage                                       |
-| `visual-regression`                            | `frontend-tests.yml`            | `frontend/**`                                                                     | Playwright visual snapshot comparison for critical screens              |
-| `soroban-testnet-smoke`                        | `contract-smoke.yml`            | `contracts/**`                                                                    | Builds WASM, audits Rust deps, deploys and initializes on Stellar testnet |
-| `test` (E2E)                                   | `e2e-tests.yml`                 | all files (targets `main`/`master` branches)                                      | Full Playwright E2E suite with PostgreSQL backend                       |
-| `validate-env-examples`                        | `env-example-validation.yml`    | `.env.example`, `docs/ENVIRONMENT.md`, source files, validation script            | `.env.example` files stay in sync with source and docs                  |
-| `audit-policy`                                 | `npm-audit-policy.yml`          | `package.json`, `package-lock.json`, audit baseline, `docs/CONTRIBUTING.md`       | npm dependency vulnerability counts stay at or below the reviewed baseline |
-| `lighthouse`                                   | `lighthouse.yml`                | `frontend/**`, `.lighthouserc.json`, `.github/workflows/lighthouse.yml`, `docs/FRONTEND_PERFORMANCE_BUDGET.md` | Lighthouse CI performance metrics and resource-size budgets             |
-
-### Post-merge checks (not blocking)
-
-| Check name    | Workflow file | Trigger            | What it does                                    |
-| ------------- | ------------- | ------------------ | ----------------------------------------------- |
-| `deploy`      | `deploy.yml`  | `push` to `main`   | Builds Docker images and validates compose startup |
-| `contract-deploy` | `contract-deploy.yml` | `push` to `main`, `release/**` PRs, manual dispatch | Promotes the Soroban contract through testnet, staging, and mainnet with environment approval gates |
-
-### Scheduled checks (not blocking PRs)
-
-| Check name               | Workflow file        | Schedule        | What it does                                                      |
-| ------------------------ | -------------------- | --------------- | ----------------------------------------------------------------- |
-| `soroban-testnet-smoke`  | `contract-smoke.yml` | Daily at 02:00 UTC | Ensures contracts still deploy successfully against live testnet  |
+| Workflow | Events | Purpose |
+| --- | --- | --- |
+| [Dependabot Auto-Merge](../.github/workflows/dependabot-auto-merge.yml) | Pull request | Processes eligible Dependabot updates |
+| [Env Example Validation](../.github/workflows/env-example-validation.yml) | Pull request and push, with path filters | Checks environment examples against the source and docs |
+| [Generated Artifact Guard](../.github/workflows/generated-artifact-guard.yml) | Pull request and push | Checks generated artifacts |
+| [Merge PR linked to Stellar Wave issues](../.github/workflows/merge-open-prs.yml) | Pull request opened against `main` | Processes pull requests linked to eligible Stellar Wave issues |
+| [Observability Config Lint](../.github/workflows/observability-lint.yml) | Pull request and push, with path filters | Validates observability configuration |
+| [PR Lint](../.github/workflows/pr-lint.yml) | Pull request | Checks for an issue link or a rationale |
+| [Release Please](../.github/workflows/release-please.yml) | Push to `main` | Maintains the release pull request |
+| [SBOM Generation & Dependency Integrity](../.github/workflows/sbom.yml) | Pull requests to `main`, path-filtered pushes to `main`, and published releases | Checks dependencies and generates software bills of materials |
+| [Secret Scan](../.github/workflows/secret-scan.yml) | Pull request and push | Scans for leaked secrets |
+| [Terraform DR Plan Validation](../.github/workflows/terraform-dr.yml) | Pull request and push, with path filters | Validates disaster-recovery infrastructure configuration |
 
 ---
 
@@ -116,7 +89,7 @@ These checks are triggered only when their path filters match. GitHub treats the
 
 - All required checks appear in the **Checks** tab on the PR.
 - If a check fails, click through to the workflow run for logs and error messages.
-- Path-scoped checks only run when relevant files are modified — if you only changed `frontend/` code, backend checks won't appear.
+- Workflows with path filters run when the changed paths match the workflow configuration.
 - Fix failures locally, push again, and the checks re-run automatically.
 
 ### Merge requirements
@@ -138,18 +111,8 @@ This repository uses **squash merges** to maintain a clean, linear commit histor
 
 | Failure                                      | Likely cause                                                       | Resolution                                                                                            |
 | -------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `commit-messages` fails                      | One or more commits don't follow Conventional Commits format       | Amend or interactive-rebase to fix: `git rebase -i origin/main`                                       |
-| `lint` fails                                 | ESLint violations in frontend or backend                           | Run `npm run lint` locally in the affected workspace and fix reported issues                          |
-| `build` fails                                | TypeScript compilation errors or missing dependencies              | Run `npm run build` in the failing workspace; check for type errors                                   |
-| `test` fails                                 | A unit or integration test is broken                               | Run `npm test` locally; check test output for assertion failures                                      |
-| `backend-coverage` fails                     | Coverage dropped below thresholds in `backend/vitest.config.ts`    | Add tests for uncovered code paths or adjust thresholds with maintainer approval                      |
 | `guard-generated-artifacts` fails            | Committed `openapi.json` is stale                                  | Run `cd backend && npm run openapi:export` and commit the updated spec                                |
 | `validate-env-examples` fails                | `.env.example` doesn't match source `process.env.*` references     | Run `npm run validate:env-examples` and add missing variables to `.env.example`                       |
-| `audit-policy` fails                         | New dependency introduced a known vulnerability above baseline     | Run `npm run audit:policy` to see details; fix the vulnerability or update baseline with maintainer OK |
-| `migration-dry-run` fails                    | A migration file has a syntax error or conflict                    | Run `npm run db:migrate -- --dry-run` locally against both SQLite and PostgreSQL                      |
-| `visual-regression` fails                    | UI screenshot doesn't match baseline                               | Review diffs in the uploaded Playwright artifact; update baselines if the change is intentional        |
-| `soroban-testnet-smoke` fails                | Contract doesn't build or deploy on testnet                        | Check Rust build errors; verify testnet RPC is reachable; check `STELLAR_TESTNET_SECRET_KEY` secret   |
-| `lighthouse` fails                           | A performance metric or resource-size budget regressed             | Check the timing and `resource-summary` assertions in `.lighthouserc.json`; see `docs/FRONTEND_PERFORMANCE_BUDGET.md` |
 
 ---
 
@@ -169,16 +132,10 @@ Branch protection rules are configured in **Settings → Branches → Branch pro
    - ✅ **Require branches to be up to date before merging**
    - ✅ **Require linear history**
    - ✅ **Do not allow bypassing the above settings** (include administrators)
-5. Under **Status checks that are required**, add:
-   - `lint`
-   - `commit-messages`
-   - `build`
-   - `test`
-   - `coverage`
-   - `guard-generated-artifacts`
+5. Under **Status checks that are required**, select the always-running job names you intend to enforce.
 6. Save the rule.
 
-> **Note:** Path-scoped checks (`backend-tests`, `frontend-tests`, `lighthouse`, etc.) should **not** be added to the required list directly, because they are skipped when their path filters don't match. GitHub would block the PR if a required check never starts. Instead, rely on the always-running `test` and `build` workflows for baseline coverage, and use path-scoped checks as additional gates when they do run.
+For workflows with path filters, check how skipped runs interact with required checks before adding a job to the rule.
 
 ### Adding a new required check
 
@@ -188,7 +145,7 @@ When adding a new CI workflow that should block merges:
 2. Ensure it triggers on `pull_request` (with or without `paths:` filters).
 3. If it should be **always-required**, add its job name to the branch protection required checks list.
 4. If it is **path-scoped**, do not add it to the required list — it will run and report status only when relevant files change.
-5. Update this document to include the new check in the appropriate table above.
+5. Update the workflow table above.
 6. Open a PR to validate the workflow runs correctly.
 
 ---

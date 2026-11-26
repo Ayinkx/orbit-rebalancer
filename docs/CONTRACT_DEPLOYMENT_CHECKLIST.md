@@ -598,7 +598,7 @@ Use this for mainnet deployment. **This is irreversible and uses real XLM.**
 
 Every deployment (testnet, staging, and production) must be verified post-deploy by calling the read-only `capability_summary` contract method (`contracts/CONTRACT_ABI.md`) before initialization or traffic cutover. This is the single cheapest way to confirm the deployed WASM matches the intended release — a stale or mismatched deploy is caught here before it reaches `initialize` or the auto-rebalancer.
 
-The automated deployment entry point is [`deployment/contract-deploy.sh`](../deployment/contract-deploy.sh), which is invoked by the [`contract-deploy` workflow](../.github/workflows/contract-deploy.yml). Its post-deploy capability verification step should run immediately after `soroban contract deploy` and must complete successfully before initialization or traffic cutover. For manual deployments, complete the environment-specific `capability_summary` command above and compare every field with this table.
+For manual deployments, use [`deployment/contract-deploy.sh`](../deployment/contract-deploy.sh) from the configured deployment environment. Its post-deploy capability verification step should run immediately after `soroban contract deploy` and must complete successfully before initialization or traffic cutover. Complete the environment-specific `capability_summary` command above and compare every field with this table.
 
 ### Expected capability set (current release)
 
