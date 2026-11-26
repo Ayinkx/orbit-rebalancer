@@ -208,7 +208,6 @@ describe('RebalanceConfirm — execution failure recovery', () => {
       screen.getByRole('checkbox', { name: /i reviewed the planned trades/i }),
     ).not.toBeChecked()
 
-    const { refetch } = mockUseRebalancePlan.mock.results[0].value
     await userEvent.click(
       screen.getByRole('button', { name: /refresh quote and retry/i }),
     )

@@ -5,8 +5,6 @@ import {
 } from './networkDetection'
 
 describe('networkDetection', () => {
-  const originalEnv = { ...import.meta.env }
-
   beforeEach(() => {
     vi.stubGlobal('window', {})
   })

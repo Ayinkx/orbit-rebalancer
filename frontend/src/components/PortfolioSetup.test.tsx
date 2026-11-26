@@ -14,7 +14,7 @@ import {
   PORTFOLIO_SETUP_DRAFT_KEY,
   type PortfolioSetupDraft,
 } from '../hooks/usePortfolio'
-import { clearPortfolioCloneDraft, savePortfolioCloneDraft } from '../utils/portfolioCloneDraft'
+import { savePortfolioCloneDraft } from '../utils/portfolioCloneDraft'
 
 
 // Strip framer-motion animation props so they don't hit the real DOM

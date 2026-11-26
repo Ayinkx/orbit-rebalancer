@@ -33,14 +33,18 @@ function loadCompletedSteps(): Set<string> {
       const parsed = JSON.parse(raw) as string[]
       return new Set(parsed)
     }
-  } catch {}
+  } catch {
+    // Corrupt or unavailable storage: start from an empty checklist.
+  }
   return new Set()
 }
 
 function saveCompletedSteps(steps: Set<string>): void {
   try {
     localStorage.setItem(COMPLETED_KEY, JSON.stringify(Array.from(steps)))
-  } catch {}
+  } catch {
+    // Progress is best-effort; storage can be unavailable.
+  }
 }
 
 function OnboardingChecklist({ publicKey, onNavigate }: OnboardingChecklistProps) {
@@ -177,7 +181,9 @@ function OnboardingChecklist({ publicKey, onNavigate }: OnboardingChecklistProps
         setDismissed(true)
         try {
           localStorage.setItem(DISMISSED_KEY, CHECKLIST_VERSION)
-        } catch {}
+        } catch {
+          // Dismissal still applies for this session.
+        }
       }
     }
     window.addEventListener('keydown', handleEsc)
@@ -189,7 +195,9 @@ function OnboardingChecklist({ publicKey, onNavigate }: OnboardingChecklistProps
     setDismissed(true)
     try {
       localStorage.setItem(DISMISSED_KEY, CHECKLIST_VERSION)
-    } catch {}
+    } catch {
+      // Dismissal still applies for this session.
+    }
   }, [])
 
   const toggle = useCallback(() => {

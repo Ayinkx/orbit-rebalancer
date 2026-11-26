@@ -1,5 +1,5 @@
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import RealtimeStatusBanner from "./RealtimeStatusBanner";
 
 const mockUseRealtimeConnection = vi.hoisted(() => vi.fn());

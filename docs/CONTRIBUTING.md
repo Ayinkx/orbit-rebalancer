@@ -423,6 +423,8 @@ cd frontend
 npm test
 ```
 
+From `frontend/`, run `npm run lint` for ESLint and `npm run lint:i18n` to audit translation keys.
+
 ### E2E tests (Playwright)
 
 E2E tests require both servers to be running.

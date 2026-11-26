@@ -54,7 +54,7 @@ type FocusTarget = 'cancel' | 'run' | 'result' | 'error' | 'start'
 const PRESET_DAYS = [SIMULATOR_MIN_DAYS, 30, 90, SIMULATOR_MAX_DAYS]
 const DEFAULT_DAYS = 30
 const ADJUST_DATES_LABEL = 'Adjust dates'
-const useShorterRangeLabel = (days: number) => `Try last ${days} days`
+const shorterRangeLabel = (days: number) => `Try last ${days} days`
 const shorterRangeSelectedMessage = (days: number) =>
     `Switched to the last ${days} closed days. Review the range and run the simulation.`
 
@@ -375,7 +375,7 @@ const HistoricalSimulator: React.FC<HistoricalSimulatorProps> = ({ portfolioId }
                                 </button>
                                 {(validation.days === null || validation.days > SIMULATOR_MIN_DAYS) && (
                                     <button type="button" onClick={applyShorterRange} className={secondaryButton}>
-                                        {useShorterRangeLabel(SIMULATOR_MIN_DAYS)}
+                                        {shorterRangeLabel(SIMULATOR_MIN_DAYS)}
                                     </button>
                                 )}
                             </>

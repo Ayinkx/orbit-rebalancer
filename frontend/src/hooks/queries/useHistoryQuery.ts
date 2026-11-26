@@ -10,7 +10,7 @@ export const useRebalanceHistory = (portfolioId?: string | null, page: number = 
     return useQuery({
         queryKey: historyKeys.list(portfolioId || undefined, page, limit, search, status, trigger, date),
         queryFn: () => {
-            let url = ENDPOINTS.REBALANCE_HISTORY
+            const url = ENDPOINTS.REBALANCE_HISTORY
             const params: Record<string, string> = {
                 page: page.toString(),
                 limit: limit.toString()

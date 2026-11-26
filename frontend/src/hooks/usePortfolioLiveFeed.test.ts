@@ -264,7 +264,6 @@ describe('usePortfolioLiveFeed – exponential-backoff reconnect', () => {
             MockWebSocket.latest().simulateClose()
         })
 
-        const socketBeforeUnmount = MockWebSocket.latest()
         const socketCountBeforeUnmount = MockWebSocket.instances.length
 
         unmount()

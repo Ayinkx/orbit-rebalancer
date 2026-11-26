@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
 
 // Mock the hooks used by Dashboard to control returned data
 vi.mock('../../hooks/queries/usePortfolioQuery', () => ({
-  useUserPortfolios: (publicKey: string | null) => ({ data: [], isLoading: false, isError: false, error: null }),
+  useUserPortfolios: (_publicKey: string | null) => ({ data: [], isLoading: false, isError: false, error: null }),
   usePortfolioDetails: () => ({ data: null, isLoading: false, isError: false, error: null }),
   useRebalanceEstimate: () => ({ data: null }),
   portfolioKeys: { all: ['portfolios'] }

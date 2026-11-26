@@ -236,7 +236,7 @@ export default function BulkPortfolioImport(props: {
       setSubmitError(importError.message || 'Import failed')
 
       if (errors.length > 0) {
-        let text = ''
+        let text: string
         try {
           text = await readFileText(file)
         } catch {

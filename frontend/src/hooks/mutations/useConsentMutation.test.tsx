@@ -86,7 +86,7 @@ describe('useRecordConsentMutation', () => {
         qc.setQueryData(consentKeys.status(userId), { accepted: false })
         vi.spyOn(api, 'post').mockRejectedValue(new Error('network down'))
 
-        const { result } = renderHook(() => useRecordConsentMutation(userId), {
+        renderHook(() => useRecordConsentMutation(userId), {
             wrapper: withClient(qc),
         })
 
@@ -136,7 +136,7 @@ describe('useRevokeConsentMutation', () => {
         qc.setQueryData(consentKeys.status(userId), { accepted: true })
         vi.spyOn(api, 'delete').mockRejectedValue(new Error('delete failed'))
 
-        const { result } = renderHook(() => useRevokeConsentMutation(userId), {
+        renderHook(() => useRevokeConsentMutation(userId), {
             wrapper: withClient(qc),
         })
 

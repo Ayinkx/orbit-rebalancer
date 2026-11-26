@@ -152,7 +152,7 @@ const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
         "Allocation settings have been updated",
         "success",
       );
-    } catch (error) {
+    } catch {
       notify("Save failed", "Could not save allocation settings", "error");
     }
   };
@@ -166,7 +166,7 @@ const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
         "Rebalancing settings have been updated",
         "success",
       );
-    } catch (error) {
+    } catch {
       notify("Save failed", "Could not save rebalancing settings", "error");
     }
   };
@@ -180,7 +180,7 @@ const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
         "Notification settings have been updated",
         "success",
       );
-    } catch (error) {
+    } catch {
       notify("Save failed", "Could not save notification settings", "error");
     }
   };
@@ -196,7 +196,7 @@ const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
       await new Promise((resolve) => setTimeout(resolve, 500));
       setSavedFrozenAssets(frozenAssets);
       notify("Settings saved", "Asset freeze settings have been updated", "success");
-    } catch (error) {
+    } catch {
       notify("Save failed", "Could not save asset freeze settings", "error");
     }
   };
@@ -210,7 +210,7 @@ const PortfolioSettings: React.FC<PortfolioSettingsProps> = ({
         "Risk management settings have been updated",
         "success",
       );
-    } catch (error) {
+    } catch {
       notify("Save failed", "Could not save risk settings", "error");
     }
   };

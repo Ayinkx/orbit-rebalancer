@@ -17,7 +17,7 @@ describe('ConsentModal', () => {
 
     beforeEach(() => {
         vi.clearAllMocks()
-        // @ts-ignore
+        // @ts-expect-error -- mock only implements the fields this test exercises
         useRecordConsentMutation.mockReturnValue({
             mutateAsync: mockMutateAsync,
             isPending: false
@@ -121,7 +121,7 @@ describe('ConsentModal', () => {
     })
 
     it('disables checkboxes and submit button while submitting', () => {
-        // @ts-ignore
+        // @ts-expect-error -- mock only implements the fields this test exercises
         useRecordConsentMutation.mockReturnValue({
             mutateAsync: mockMutateAsync,
             isPending: true
