@@ -1,6 +1,7 @@
 # Terraform
+# `.terraform.lock.hcl` is intentionally tracked: it pins provider versions and
+# checksums so plans do not drift between machines (see README).
 .terraform/
-.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 crash.log

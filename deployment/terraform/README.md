@@ -324,6 +324,49 @@ To validate state consistency, plan reproducibility, and safe rollback boundarie
    If an apply is interrupted or results in `ecs_rollout_status == "blocked"`, execute the targeted rollback command or re-run with the previous task revision ARN from state outputs. Never delete or bypass remote state locks.
 
 
+## Provider lock files
+
+Every Terraform working directory in this tree commits a `.terraform.lock.hcl`
+file: the root module and each directory under `modules/`. The lock file records
+the exact provider versions and checksums, so contributors and CI resolve the
+same providers instead of silently drifting apart.
+
+Provider constraints are aligned across the tree: `hashicorp/aws ~> 5.0`
+everywhere, plus `hashicorp/archive ~> 2.0` in `modules/rotation_lambda`.
+Terraform itself must be **1.9.0 or newer** (see `providers.tf`); CI uses 1.9.8.
+
+### Upgrading providers
+
+Do this in one commit per upgrade, not as a drive-by change:
+
+1. In the directory you are upgrading, run:
+
+   ```bash
+   terraform init -upgrade
+   ```
+
+2. Re-lock for every platform the team and CI use. Without this, the lock file
+   only covers the machine that ran the upgrade and other platforms fail with
+   `provider ... does not have a package available for your platform`:
+
+   ```bash
+   terraform providers lock \
+     -platform=linux_amd64 \
+     -platform=windows_amd64 \
+     -platform=darwin_arm64 \
+     -platform=darwin_amd64
+   ```
+
+3. Run `terraform validate` in that directory.
+4. Commit the updated `.terraform.lock.hcl` together with any constraint change
+   in `versions.tf`.
+5. Never commit `.terraform/` directories or state files; `.gitignore` already
+   excludes them.
+
+`modules/` directories are consumed by the root module, so their lock files are
+only used when you run Terraform inside them (for example the DR validation
+workflow running against `modules/secondary-region`).
+
 ## Modules
 
 - `vpc`: VPC and networking configuration
