@@ -1,0 +1,29 @@
+name: Dependency Audit
+
+# Scheduled on purpose: devDependency advisories surface weekly without blocking
+# every push or pull request. Fails on high and critical findings only.
+# See docs/CONTRIBUTING.md ("Dev-only advisories are audited on a schedule").
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-audit:
+    name: Frontend dev dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Audit the lockfile
+        working-directory: frontend
+        run: npm audit --package-lock-only --audit-level=high
