@@ -32,8 +32,7 @@
         "src/**/*.test.tsx",
         "src/**/__tests__/**",
         "src/**/*.stories.ts",
-        "src/**/*.stories.tsx",
-        "src/components/upstream_dashboard.tsx"
+        "src/**/*.stories.tsx"
     ],
     "references": [
         {
