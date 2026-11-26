@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { Toast, ToastStack } from '../Toast'
+import { ToastStack } from '../Toast'
 
 describe('ToastStack', () => {
   it('stacks multiple toasts vertically instead of overwriting', () => {

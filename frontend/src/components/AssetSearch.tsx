@@ -59,7 +59,9 @@ function getRecentSearches(): string[] {
 function saveRecentSearches(symbols: string[]) {
   try {
     localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(symbols))
-  } catch {}
+  } catch {
+    // Recent searches are a convenience; storage may be unavailable.
+  }
 }
 
 function addRecentSearch(symbol: string) {
@@ -91,7 +93,9 @@ function getCGCache(): Record<string, CGCacheEntry> {
 function saveCGCache(cache: Record<string, CGCacheEntry>) {
   try {
     localStorage.setItem(CG_CACHE_KEY, JSON.stringify(cache))
-  } catch {}
+  } catch {
+    // Cache writes are best-effort; private mode can reject them.
+  }
 }
 
 function formatContractAddress(address?: string): string {

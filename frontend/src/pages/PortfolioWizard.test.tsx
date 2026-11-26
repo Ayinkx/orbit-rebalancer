@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   render,
   screen,
@@ -9,8 +9,7 @@ import {
 } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PortfolioWizard from './PortfolioWizard';
-import { api } from '../config/api';
-import { clearWizardDraft, saveWizardDraft, loadWizardDraft } from '../utils/wizardDraft';
+import { clearWizardDraft, saveWizardDraft } from '../utils/wizardDraft';
 import i18n from '../i18n';
 
 // Mock framer-motion to simplify DOM structure
@@ -330,7 +329,7 @@ describe('PortfolioWizard Page', () => {
     expect(mockDraft.current).not.toBeNull();
 
     // Mount wizard - should detect the saved draft and show resume prompt
-    const { onNavigate } = renderWizard();
+    renderWizard();
 
     await waitFor(() => {
       expect(screen.getByText(/Resume where you left off/i)).toBeInTheDocument();

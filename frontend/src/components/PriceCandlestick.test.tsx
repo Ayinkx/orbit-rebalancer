@@ -25,7 +25,7 @@ vi.mock('recharts', () => ({
   ComposedChart: ({ children, data }: any) => (
     <div data-testid="composed-chart" data-candle-count={data.length}>{children}</div>
   ),
-  Bar: ({ shape }: any) => <div data-testid="bar" />,
+  Bar: () => <div data-testid="bar" />,
   XAxis: () => <div data-testid="x-axis" />,
   YAxis: () => <div data-testid="y-axis" />,
   CartesianGrid: () => <div data-testid="cartesian-grid" />,
@@ -104,7 +104,7 @@ describe('PriceCandlestick', () => {
   })
 
   it('persists last-selected interval in sessionStorage', () => {
-    const { rerender } = render(<PriceCandlestick asset="XLM" />)
+    render(<PriceCandlestick asset="XLM" />)
 
     fireEvent.click(screen.getByText('1W'))
 

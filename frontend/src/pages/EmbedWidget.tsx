@@ -104,8 +104,8 @@ function EmbedWidget({ id }: EmbedWidgetProps) {
           if (perfRes?.totalReturnPercent !== undefined) {
             setPerformancePercent(perfRes.totalReturnPercent)
           }
-        } catch (e) {
-          
+        } catch {
+          // Performance summary is optional; keep the page usable without it.
         }
       } catch (err: any) {
         if (err.status === 410) {

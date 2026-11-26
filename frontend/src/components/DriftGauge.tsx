@@ -299,8 +299,6 @@ export const DriftGaugeGrid: React.FC<DriftGaugeGridProps> = ({
 }) => {
   const [showBreakdown, setShowBreakdown] = useState(false)
 
-  if (assets.length === 0) return null
-
   const sortedAssets = useMemo(() => {
     return [...assets].sort((a, b) => Math.abs(b.current - b.target) - Math.abs(a.current - a.target))
   }, [assets])
@@ -312,6 +310,8 @@ export const DriftGaugeGrid: React.FC<DriftGaugeGridProps> = ({
   const usedStatuses = useMemo(() => {
     return new Set(assets.map((a) => getDriftStatus(a.current - a.target, a.threshold)))
   }, [assets])
+
+  if (assets.length === 0) return null
 
   return (
     <section

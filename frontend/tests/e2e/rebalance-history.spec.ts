@@ -28,8 +28,6 @@ test.describe('Dashboard, Rebalance, and History', () => {
     // Some implementations might not show the button if no rebalance is needed.
     // We check if it exists in the DOM, if it's there we can interact with it.
     // In our seeded backend test, we'll want to ensure `needsRebalance` is true.
-    const executeRebalanceBtn = page.getByRole('button', { name: /Execute Rebalance/i });
-    
     // We only wait to verify UI is rendered, clicking it might fail if backend isn't set up yet but
     // that's part of the integration tests later. We'll simply verify the history list displays
     // demo or real data rows.

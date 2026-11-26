@@ -41,7 +41,7 @@
     "smoke": "bash scripts/health-smoke.sh",
     "lint": "npm run lint:backend && npm run lint:frontend",
     "lint:backend": "cd backend && npm run lint",
-    "lint:frontend": "cd frontend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint && npm run lint:i18n",
     "audit:policy": "node scripts/check-npm-audit-baseline.mjs",
     "audit:policy:update": "node scripts/check-npm-audit-baseline.mjs --write-baseline",
     "sbom": "bash scripts/generate-sbom.sh",

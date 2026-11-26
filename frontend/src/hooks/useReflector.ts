@@ -87,8 +87,7 @@ export const useReflector = () => {
                 if (!isActive) return
                 setError(err instanceof Error ? err.message : 'Failed to fetch prices')
             } finally {
-                if (!isActive) return
-                setLoading(false)
+                if (isActive) setLoading(false)
             }
         }
 

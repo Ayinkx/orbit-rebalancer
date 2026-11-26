@@ -61,7 +61,9 @@ function Onboarding({ onDismiss }: OnboardingProps) {
   const finish = useCallback(() => {
     try {
       localStorage.setItem(STORAGE_KEY, STORAGE_VERSION)
-    } catch {}
+    } catch {
+      // Storage can be unavailable; dismissal still applies for this session.
+    }
     setCompleted(true)
     setVisible(false)
     onDismiss?.()
@@ -206,7 +208,9 @@ function Onboarding({ onDismiss }: OnboardingProps) {
 export function resetOnboarding(): void {
   try {
     localStorage.removeItem(STORAGE_KEY)
-  } catch {}
+  } catch {
+    // Storage may be unavailable; nothing to clear in that case.
+  }
 }
 
 export function isOnboardingComplete(): boolean {
