@@ -86,10 +86,8 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 
 # Gatsby files
-.cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js
 # https://nextjs.org/blog/next-9-1#public-directory-support
 # public
@@ -138,7 +136,6 @@ Cargo.lock
 .stellar/
 
 # OS generated files
-.DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
@@ -183,11 +180,9 @@ secrets/
 *.crt
 
 # Testing
-coverage/
 .coverage
 htmlcov/
 .pytest_cache/
-.cache
 
 # Playwright (generated E2E artifacts)
 playwright-report/
@@ -231,7 +226,7 @@ keypairs.json
 
 # Monitoring and logs
 monitoring/logs/
-*.pid
+
 
 # Generated output files
 backend/test_results.txt
