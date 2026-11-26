@@ -1,5 +1,7 @@
 terraform {
-  required_version = ">= 1.5.0"
+  # 1.9+ is required for variable validation blocks that reference other
+  # variables (see modules/elasticache/variables.tf).
+  required_version = ">= 1.9.0"
   required_providers {
     aws = {
       source  = "hashicorp/aws"
