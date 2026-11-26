@@ -227,7 +227,6 @@ keypairs.json
 # Monitoring and logs
 monitoring/logs/
 
-
 # Generated output files
 backend/test_results.txt
 backend/test_results_raw.txt
