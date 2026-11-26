@@ -136,6 +136,18 @@ npm run audit:policy:update
 
 Temporary exceptions should be time-bounded and recorded in the release notes or PR description. Do not silently expand the baseline.
 
+### Dev-only advisories are audited on a schedule
+
+Most remaining findings sit in tooling that never ships — Storybook, Vitest, Vite and their transitive
+dependencies. They are tracked separately from the release baseline: `.github/workflows/npm-audit.yml`
+runs `npm audit --package-lock-only --audit-level=high` in `frontend/` every Monday and on demand
+(`workflow_dispatch`).
+
+That workflow is deliberately **not** triggered by pushes or pull requests, so a newly published
+advisory surfaces within a week without turning unrelated PRs red. When it fails, refresh the tree with
+`npm update --save-dev` in `frontend/`, confirm `npm test` still collects, and open a focused PR. If an
+advisory cannot be cleared without a major bump, say so in the PR instead of forcing the upgrade.
+
 ---
 
 ## 6. Redis and queue workers (optional)
@@ -281,6 +293,18 @@ Verify the backend is up:
 curl http://localhost:3001/api/health
 # {"status":"healthy","timestamp":"..."}
 ```
+
+### Dev servers stay on loopback
+
+`npm run dev`, `npm run preview` and `npm run storybook` bind to `127.0.0.1` on purpose.
+
+The dev-only advisories tracked in issue #30 are about exactly these servers: a page you have open can
+reach them and read files the server should not serve (`.env`, `.git`, keys) or inject code into the
+preview. Binding to `0.0.0.0` exposes that surface to the whole network.
+
+- Do not pass `--host 0.0.0.0`, and do not bind Storybook or a Vitest UI to a LAN address.
+- To reach a dev server from another device, forward it over SSH:
+  `ssh -L 3000:127.0.0.1:3000 user@host`.
 
 ---
 
