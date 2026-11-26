@@ -64,8 +64,10 @@ jobs:
         run: |
           # The 'level' label must be present in the backend pipeline labels section
           # so that per-stream retention selectors in Loki work correctly.
-          LEVEL_LABEL=$(yq e '.scrape_configs[] | select(.job_name == "backend-logs") | .pipeline_stages[] | .labels.level' deployment/observability/promtail/promtail-config.yml | grep -v 'null' | head -1)
-          if [[ -z "${LEVEL_LABEL}" ]]; then
+          # Promtail promotes extracted fields with null values (`level:`), so check
+          # that the key exists rather than waiting for a non-null value.
+          LEVEL_PRESENT=$(yq e '.scrape_configs[] | select(.job_name == "backend-logs") | .pipeline_stages[] | select(has("labels")) | .labels | has("level")' deployment/observability/promtail/promtail-config.yml | grep -c '^true$')
+          if [[ "${LEVEL_PRESENT}" -lt 1 ]]; then
             echo "❌  Promtail backend-logs pipeline must promote 'level' as a label" >&2
             exit 1
           fi
