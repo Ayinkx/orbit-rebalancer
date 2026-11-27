@@ -120,6 +120,13 @@ Release changelog entries are generated into these sections:
 - **Breaking changes**: Include migration guides in release notes
 - **Security updates**: Follow [security disclosure policy](.github/SECURITY.md) if applicable
 
+## [1.3.1](https://github.com/Ayinkx/orbit-rebalancer/compare/orbit-rebalancer-v1.3.0...orbit-rebalancer-v1.3.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **frontend:** remove stale tsconfig exclude for deleted component ([#51](https://github.com/Ayinkx/orbit-rebalancer/issues/51)) ([1e60d05](https://github.com/Ayinkx/orbit-rebalancer/commit/1e60d05d3082984adb062a97ff03fee10e363008))
+
 ## [Unreleased]
 
 - Commit Reflector quotes and asset freshness together and preserve accepted quote ledgers on cached reads (#2027).
